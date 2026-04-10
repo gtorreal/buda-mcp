@@ -28,7 +28,7 @@ const client = new BudaClient(
 const authEnabled = client.hasAuth();
 
 function createServer(): McpServer {
-  const server = new McpServer({ name: "buda-mcp", version: "1.1.0" });
+  const server = new McpServer({ name: "buda-mcp", version: "1.1.1" });
 
   // Per-request cache so caching works correctly for stateless HTTP
   const reqCache = new MemoryCache();
@@ -101,7 +101,7 @@ app.use(express.json());
 
 // Health check for Railway / uptime monitors
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", server: "buda-mcp", version: "1.1.0", auth_mode: authEnabled ? "authenticated" : "public" });
+  res.json({ status: "ok", server: "buda-mcp", version: "1.1.1", auth_mode: authEnabled ? "authenticated" : "public" });
 });
 
 // Smithery static server card — lets Smithery scan tools without running the server
@@ -252,7 +252,7 @@ app.get("/.well-known/mcp/server-card.json", (_req, res) => {
     : [];
 
   res.json({
-    serverInfo: { name: "buda-mcp", version: "1.1.0" },
+    serverInfo: { name: "buda-mcp", version: "1.1.1" },
     authentication: { required: authEnabled },
     tools: [...publicTools, ...authTools],
     resources: [

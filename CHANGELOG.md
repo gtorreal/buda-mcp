@@ -7,6 +7,15 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.1] – 2026-04-10
+
+### Fixed
+
+- `server.json` version corrected to `1.1.1` (was stuck at `1.0.0`, breaking MCP Registry sync).
+- npm package name corrected from `@gtorreal/buda-mcp` to `@guiie/buda-mcp` in README, marketplace files, and PUBLISH_CHECKLIST.md.
+
+---
+
 ## [1.1.0] – 2026-04-10
 
 ### Added

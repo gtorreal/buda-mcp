@@ -25,7 +25,7 @@ const client = new BudaClient(
 
 const server = new McpServer({
   name: "buda-mcp",
-  version: "1.1.0",
+  version: "1.1.1",
 });
 
 // Public tools
