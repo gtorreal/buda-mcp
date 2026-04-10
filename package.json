@@ -1,0 +1,53 @@
+{
+  "name": "@gtorreal/buda-mcp",
+  "version": "1.0.0",
+  "mcpName": "io.github.gtorreal/buda-mcp",
+  "description": "MCP server for Buda.com's public cryptocurrency exchange API (Chile, Colombia, Peru)",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "buda-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "tsx test/run-all.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "buda",
+    "cryptocurrency",
+    "exchange",
+    "bitcoin",
+    "trading",
+    "chile",
+    "colombia",
+    "peru",
+    "clp",
+    "cop",
+    "pen"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gtorreal/buda-mcp.git"
+  },
+  "homepage": "https://github.com/gtorreal/buda-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/gtorreal/buda-mcp/issues"
+  },
+  "license": "MIT",
+  "author": "Guille <guillermo@buda.com>",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}

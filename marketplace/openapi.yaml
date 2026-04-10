@@ -1,0 +1,349 @@
+openapi: 3.1.0
+info:
+  title: Buda.com Market Data API
+  description: |
+    Real-time cryptocurrency market data from Buda.com — the leading exchange
+    in Chile (CLP), Colombia (COP), and Peru (PEN).
+    Provides live prices, order books, trade history, and volume for all markets.
+    No authentication required.
+
+    **Note:** This spec describes a deployed HTTP wrapper around the buda-mcp
+    stdio server. Deploy locally with mcp-proxy:
+      mcp-proxy --port 8000 -- npx -y @gtorreal/buda-mcp
+    Or point `servers[0].url` at your hosted instance.
+  version: 1.0.0
+  contact:
+    url: https://github.com/gtorreal/buda-mcp
+
+servers:
+  - url: https://YOUR_DEPLOYED_DOMAIN
+    description: Deployed buda-mcp HTTP instance
+
+paths:
+  /get_markets:
+    get:
+      operationId: getMarkets
+      summary: List all trading pairs
+      description: |
+        Returns all available markets on Buda.com, or details for a single market.
+        Each market entry includes base/quote currencies, trading fees, and minimum order amounts.
+      parameters:
+        - name: market_id
+          in: query
+          required: false
+          description: |
+            Market identifier (e.g. "BTC-CLP", "ETH-BTC"). Case-insensitive.
+            Omit to return all markets.
+          schema:
+            type: string
+            example: BTC-CLP
+      responses:
+        "200":
+          description: Market list or single market details
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MarketsResponse"
+                  - $ref: "#/components/schemas/SingleMarketResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /get_ticker:
+    get:
+      operationId: getTicker
+      summary: Current price and volume for a market
+      description: |
+        Returns the current market snapshot: last traded price, best bid (max_bid),
+        best ask (min_ask), 24h volume, and price change over 24h and 7d.
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP", "ETH-COP"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC-CLP
+      responses:
+        "200":
+          description: Current ticker snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TickerResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /get_orderbook:
+    get:
+      operationId: getOrderbook
+      summary: Order book for a market
+      description: |
+        Returns the current limit order book: sorted arrays of bids (buy orders)
+        and asks (sell orders). Each entry is [price, amount].
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC-CLP
+        - name: limit
+          in: query
+          required: false
+          description: Max number of price levels to return per side. Defaults to all.
+          schema:
+            type: integer
+            minimum: 1
+            example: 20
+      responses:
+        "200":
+          description: Order book bids and asks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBookResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /get_trades:
+    get:
+      operationId: getTrades
+      summary: Recent trade history for a market
+      description: |
+        Returns recent trades. Each entry is [timestamp_ms, amount, price, direction]
+        where direction is "buy" or "sell".
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC-CLP
+        - name: limit
+          in: query
+          required: false
+          description: Number of trades to return (default 50, max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            example: 50
+        - name: timestamp
+          in: query
+          required: false
+          description: |
+            Unix timestamp in seconds. Returns trades older than this value,
+            for pagination through history.
+          schema:
+            type: integer
+            example: 1712000000
+      responses:
+        "200":
+          description: Trade history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TradesResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /get_market_volume:
+    get:
+      operationId: getMarketVolume
+      summary: 24h and 7-day volume for a market
+      description: |
+        Returns transacted volume broken down by side (ask = sell, bid = buy)
+        and time window (24h and 7d). Amounts are in the market's base currency.
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC-CLP
+      responses:
+        "200":
+          description: Volume data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VolumeResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  schemas:
+    Amount:
+      type: array
+      description: Monetary amount as [value_string, currency_code]
+      items:
+        type: string
+      minItems: 2
+      maxItems: 2
+      example: ["65929908.0", "CLP"]
+
+    Market:
+      type: object
+      properties:
+        id:
+          type: string
+          example: BTC-CLP
+        name:
+          type: string
+          example: btc-clp
+        base_currency:
+          type: string
+          example: BTC
+        quote_currency:
+          type: string
+          example: CLP
+        minimum_order_amount:
+          $ref: "#/components/schemas/Amount"
+        taker_fee:
+          type: string
+          example: "0.8"
+        maker_fee:
+          type: string
+          example: "0.4"
+        max_orders_per_minute:
+          type: integer
+          example: 100
+        maker_discount_percentage:
+          type: string
+        taker_discount_percentage:
+          type: string
+
+    MarketsResponse:
+      type: object
+      properties:
+        markets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Market"
+
+    SingleMarketResponse:
+      type: object
+      properties:
+        market:
+          $ref: "#/components/schemas/Market"
+
+    Ticker:
+      type: object
+      properties:
+        market_id:
+          type: string
+          example: BTC-CLP
+        last_price:
+          $ref: "#/components/schemas/Amount"
+        max_bid:
+          $ref: "#/components/schemas/Amount"
+        min_ask:
+          $ref: "#/components/schemas/Amount"
+        volume:
+          $ref: "#/components/schemas/Amount"
+        price_variation_24h:
+          type: string
+          description: Decimal fraction (e.g. "0.014" = +1.4%)
+          example: "0.014"
+        price_variation_7d:
+          type: string
+          example: "-0.032"
+
+    TickerResponse:
+      type: object
+      properties:
+        ticker:
+          $ref: "#/components/schemas/Ticker"
+
+    OrderBookResponse:
+      type: object
+      properties:
+        bids:
+          type: array
+          description: Buy orders sorted best-first, each [price, amount]
+          items:
+            type: array
+            items:
+              type: string
+            minItems: 2
+            maxItems: 2
+        asks:
+          type: array
+          description: Sell orders sorted best-first, each [price, amount]
+          items:
+            type: array
+            items:
+              type: string
+            minItems: 2
+            maxItems: 2
+        bid_count:
+          type: integer
+          description: Total number of bid levels in the full book
+        ask_count:
+          type: integer
+          description: Total number of ask levels in the full book
+
+    TradeEntry:
+      type: array
+      description: "[timestamp_ms, amount, price, direction]"
+      items:
+        type: string
+      minItems: 4
+      maxItems: 4
+      example: ["1775857164247", "0.00113757", "65929908.0", "buy"]
+
+    TradesResponse:
+      type: object
+      properties:
+        trades:
+          type: object
+          properties:
+            market_id:
+              type: string
+              example: BTC-CLP
+            timestamp:
+              type: string
+              description: Most recent trade timestamp (ms)
+            last_timestamp:
+              type: string
+              description: Oldest trade timestamp in this response (ms)
+            entries:
+              type: array
+              items:
+                $ref: "#/components/schemas/TradeEntry"
+
+    VolumeResponse:
+      type: object
+      properties:
+        volume:
+          type: object
+          properties:
+            market_id:
+              type: string
+              example: BTC-CLP
+            ask_volume_24h:
+              $ref: "#/components/schemas/Amount"
+            ask_volume_7d:
+              $ref: "#/components/schemas/Amount"
+            bid_volume_24h:
+              $ref: "#/components/schemas/Amount"
+            bid_volume_7d:
+              $ref: "#/components/schemas/Amount"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+  responses:
+    NotFound:
+      description: Market not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -1,0 +1,87 @@
+{
+  "_comment": "Gemini function declarations for buda-mcp. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
+  "functionDeclarations": [
+    {
+      "name": "get_markets",
+      "description": "List all available cryptocurrency trading pairs on Buda.com (Chile, Colombia, Peru), or get details for a specific market. Returns base/quote currencies, maker/taker fees, and minimum order sizes.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Optional market identifier such as 'BTC-CLP', 'ETH-BTC', or 'BTC-COP'. Case-insensitive. Omit to list all available markets."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "get_ticker",
+      "description": "Get the current market ticker for a Buda.com trading pair. Returns the last traded price, best bid (max_bid), best ask (min_ask), 24-hour volume, and price change percentage over 24 hours and 7 days.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market identifier such as 'BTC-CLP', 'ETH-COP', or 'ETH-BTC'. Case-insensitive."
+          }
+        },
+        "required": ["market_id"]
+      }
+    },
+    {
+      "name": "get_orderbook",
+      "description": "Get the current limit order book for a Buda.com market. Returns sorted arrays of bids (buy orders) and asks (sell orders). Each entry is a [price, amount] pair. Useful for analyzing market depth and calculating slippage.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market identifier such as 'BTC-CLP' or 'ETH-BTC'. Case-insensitive."
+          },
+          "limit": {
+            "type": "INTEGER",
+            "description": "Maximum number of price levels to return per side (bids and asks). Defaults to all levels if omitted."
+          }
+        },
+        "required": ["market_id"]
+      }
+    },
+    {
+      "name": "get_trades",
+      "description": "Get recent trade history for a Buda.com market. Each trade entry contains [timestamp_ms, amount, price, direction] where direction is 'buy' or 'sell'. Supports pagination via the timestamp parameter.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market identifier such as 'BTC-CLP' or 'ETH-BTC'. Case-insensitive."
+          },
+          "limit": {
+            "type": "INTEGER",
+            "description": "Number of trades to return. Default is 50, maximum is 100."
+          },
+          "timestamp": {
+            "type": "INTEGER",
+            "description": "Unix timestamp in seconds. When provided, returns trades that occurred before this timestamp, enabling pagination through historical data."
+          }
+        },
+        "required": ["market_id"]
+      }
+    },
+    {
+      "name": "get_market_volume",
+      "description": "Get 24-hour and 7-day transacted volume for a Buda.com market, broken down by side: ask_volume (sell orders) and bid_volume (buy orders). Amounts are in the market's base currency.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market identifier such as 'BTC-CLP', 'ETH-COP', or 'ETH-BTC'. Case-insensitive."
+          }
+        },
+        "required": ["market_id"]
+      }
+    }
+  ]
+}
