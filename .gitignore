@@ -1,3 +1,8 @@
 node_modules/
 dist/
 *.js.map
+
+.mcpregistry_*
+.playwright-mcp/
+pr-body.md
+awesome-mcp-servers/

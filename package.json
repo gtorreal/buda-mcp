@@ -10,7 +10,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/http.js",
+    "start:stdio": "node dist/index.js",
+    "dev:http": "tsx src/http.ts",
     "dev": "tsx src/index.ts",
     "test": "tsx test/run-all.ts"
   },
@@ -43,9 +45,11 @@
   "author": "Guille <guillermo@buda.com>",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "express": "^5.2.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
