@@ -28,7 +28,7 @@ npm login   # if not already logged in
 npm publish --access public --provenance
 ```
 
-Verify: https://www.npmjs.com/package/@gtorreal/buda-mcp
+Verify: https://www.npmjs.com/package/@guiie/buda-mcp
 
 ---
 
@@ -78,7 +78,7 @@ Then create a GitHub Release from the tag with the following release notes:
 - Updated README with npx quickstart and per-tool examples
 
 ```bash
-npx @gtorreal/buda-mcp
+npx @guiie/buda-mcp
 ```
 ```
 
@@ -105,7 +105,7 @@ MCP_REGISTRY_TOKEN=<token> ./mcp-publisher publish
 
 Smithery auto-detects updates via the `/.well-known/mcp/server-card.json` endpoint on the Railway deployment. No manual action required after deploying.
 
-Verify: https://smithery.ai/server/@gtorreal/buda-mcp
+Verify: https://smithery.ai/server/@guiie/buda-mcp
 
 ---
 
@@ -120,7 +120,7 @@ Subject: [Update] buda-mcp v1.1.0 — new tools + auth
 
 Hi mcp.so team,
 
-I've released v1.1.0 of buda-mcp (@gtorreal/buda-mcp on npm).
+I've released v1.1.0 of buda-mcp (@guiie/buda-mcp on npm).
 
 Key changes:
 - 3 new public tools: get_spread, compare_markets, get_price_history (OHLCV)
@@ -130,11 +130,11 @@ Key changes:
 - Structured error responses
 
 Links:
-- npm: https://www.npmjs.com/package/@gtorreal/buda-mcp
+- npm: https://www.npmjs.com/package/@guiie/buda-mcp
 - GitHub: https://github.com/gtorreal/buda-mcp
 - Changelog: https://github.com/gtorreal/buda-mcp/blob/main/CHANGELOG.md
 
-Quick start: npx @gtorreal/buda-mcp
+Quick start: npx @guiie/buda-mcp
 
 Thank you!
 ```
@@ -154,7 +154,7 @@ Hi Glama team,
 
 buda-mcp has been updated to v1.1.0. Here's a summary of what's new:
 
-Package: @gtorreal/buda-mcp (npm)
+Package: @guiie/buda-mcp (npm)
 Registry: io.github.gtorreal/buda-mcp (MCP Registry)
 Version: 1.1.0
 
@@ -170,7 +170,7 @@ New capabilities:
 - Structured error responses (isError: true)
 
 Quick start:
-  npx @gtorreal/buda-mcp
+  npx @guiie/buda-mcp
 
 Changelog: https://github.com/gtorreal/buda-mcp/blob/main/CHANGELOG.md
 GitHub: https://github.com/gtorreal/buda-mcp
@@ -182,8 +182,8 @@ Thank you!
 
 ## 8. Post-publish verification
 
-- [ ] `npx @gtorreal/buda-mcp@1.1.0` starts successfully
-- [ ] `npm info @gtorreal/buda-mcp version` returns `1.1.0`
+- [ ] `npx @guiie/buda-mcp@1.1.0` starts successfully
+- [ ] `npm info @guiie/buda-mcp version` returns `1.1.0`
 - [ ] GitHub release tag `v1.1.0` is visible
 - [ ] MCP Registry entry reflects v1.1.0
 - [ ] Smithery server card lists 8 public tools

@@ -9,7 +9,7 @@ info:
 
     **Note:** This spec describes a deployed HTTP wrapper around the buda-mcp
     stdio server. Deploy locally with mcp-proxy:
-      mcp-proxy --port 8000 -- npx -y @gtorreal/buda-mcp
+      mcp-proxy --port 8000 -- npx -y @guiie/buda-mcp
     Or point `servers[0].url` at your hosted instance.
   version: 1.1.0
   contact:

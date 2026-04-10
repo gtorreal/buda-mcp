@@ -1,6 +1,6 @@
 # buda-mcp
 
-[![npm version](https://img.shields.io/npm/v/@gtorreal/buda-mcp)](https://www.npmjs.com/package/@gtorreal/buda-mcp)
+[![npm version](https://img.shields.io/npm/v/@guiie/buda-mcp)](https://www.npmjs.com/package/@guiie/buda-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
 
@@ -11,13 +11,13 @@ MCP server for [Buda.com](https://www.buda.com/) — the leading cryptocurrency 
 ## Quick Start
 
 ```bash
-npx @gtorreal/buda-mcp
+npx @guiie/buda-mcp
 ```
 
 Or install permanently:
 
 ```bash
-npm install -g @gtorreal/buda-mcp
+npm install -g @guiie/buda-mcp
 buda-mcp
 ```
 
@@ -28,7 +28,7 @@ buda-mcp
 ### Claude Code
 
 ```bash
-claude mcp add buda-mcp -- npx -y @gtorreal/buda-mcp
+claude mcp add buda-mcp -- npx -y @guiie/buda-mcp
 ```
 
 ### Claude Desktop (`claude_desktop_config.json`)
@@ -38,7 +38,7 @@ claude mcp add buda-mcp -- npx -y @gtorreal/buda-mcp
   "mcpServers": {
     "buda-mcp": {
       "command": "npx",
-      "args": ["-y", "@gtorreal/buda-mcp"]
+      "args": ["-y", "@guiie/buda-mcp"]
     }
   }
 }
@@ -51,7 +51,7 @@ claude mcp add buda-mcp -- npx -y @gtorreal/buda-mcp
   "mcpServers": {
     "buda-mcp": {
       "command": "npx",
-      "args": ["-y", "@gtorreal/buda-mcp"]
+      "args": ["-y", "@guiie/buda-mcp"]
     }
   }
 }
@@ -255,7 +255,7 @@ The server defaults to **public-only mode** — no API key needed, no breaking c
 To enable authenticated tools, set environment variables before running:
 
 ```bash
-BUDA_API_KEY=your_api_key BUDA_API_SECRET=your_api_secret npx @gtorreal/buda-mcp
+BUDA_API_KEY=your_api_key BUDA_API_SECRET=your_api_secret npx @guiie/buda-mcp
 ```
 
 Or in Claude Desktop config:
@@ -265,7 +265,7 @@ Or in Claude Desktop config:
   "mcpServers": {
     "buda-mcp": {
       "command": "npx",
-      "args": ["-y", "@gtorreal/buda-mcp"],
+      "args": ["-y", "@guiie/buda-mcp"],
       "env": {
         "BUDA_API_KEY": "your_api_key",
         "BUDA_API_SECRET": "your_api_secret"

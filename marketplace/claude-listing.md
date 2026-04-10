@@ -3,7 +3,7 @@
 **Category:** Finance / Cryptocurrency  
 **Auth:** Optional (public mode requires no key; authenticated mode needs `BUDA_API_KEY` + `BUDA_API_SECRET`)  
 **Transport:** stdio  
-**npm:** `@gtorreal/buda-mcp`  
+**npm:** `@guiie/buda-mcp`  
 **Registry name:** `io.github.gtorreal/buda-mcp`
 
 ---
@@ -101,12 +101,12 @@ Cancel an open order by ID. Requires `confirmation_token="CONFIRM"`.
 
 **Quick start (npx)**
 ```bash
-npx @gtorreal/buda-mcp
+npx @guiie/buda-mcp
 ```
 
 **Claude Code (claude CLI)**
 ```bash
-claude mcp add buda-mcp -- npx -y @gtorreal/buda-mcp
+claude mcp add buda-mcp -- npx -y @guiie/buda-mcp
 ```
 
 **Claude Desktop (`claude_desktop_config.json`)**
@@ -115,7 +115,7 @@ claude mcp add buda-mcp -- npx -y @gtorreal/buda-mcp
   "mcpServers": {
     "buda-mcp": {
       "command": "npx",
-      "args": ["-y", "@gtorreal/buda-mcp"]
+      "args": ["-y", "@guiie/buda-mcp"]
     }
   }
 }
@@ -127,7 +127,7 @@ claude mcp add buda-mcp -- npx -y @gtorreal/buda-mcp
   "mcpServers": {
     "buda-mcp": {
       "command": "npx",
-      "args": ["-y", "@gtorreal/buda-mcp"],
+      "args": ["-y", "@guiie/buda-mcp"],
       "env": {
         "BUDA_API_KEY": "your_api_key",
         "BUDA_API_SECRET": "your_api_secret"
@@ -161,5 +161,5 @@ node dist/index.js
 ## Source
 
 - GitHub: https://github.com/gtorreal/buda-mcp  
-- npm: https://www.npmjs.com/package/@gtorreal/buda-mcp  
+- npm: https://www.npmjs.com/package/@guiie/buda-mcp  
 - Buda.com API docs: https://api.buda.com/en/
