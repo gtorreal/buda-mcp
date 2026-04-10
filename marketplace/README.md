@@ -32,7 +32,7 @@ Used to register buda-mcp as a ChatGPT Action inside a custom GPT.
 1. Deploy the server over HTTP:
    ```bash
    pip install mcp-proxy
-   mcp-proxy --port 8000 -- npx -y @gtorreal/buda-mcp
+   mcp-proxy --port 8000 -- npx -y @guiie/buda-mcp
    ```
 2. Replace `https://YOUR_DEPLOYED_DOMAIN` in `openapi.yaml` with your public URL.
 3. In the GPT editor → "Actions" → "Add action" → paste the YAML.

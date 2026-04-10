@@ -38,7 +38,7 @@ npm publish --access public
 
 ### 1c. Put your npm token into GitHub Actions
 1. Go to https://www.npmjs.com/settings/gtorreal/tokens
-2. Create a new **Automation** token (type: "Granular Access Token" → select `@gtorreal/buda-mcp`)
+2. Create a new **Automation** token (type: "Granular Access Token" → select `@guiie/buda-mcp`)
 3. Run:
 ```bash
 gh secret set NPM_TOKEN --repo gtorreal/buda-mcp
@@ -88,7 +88,7 @@ URL: https://www.pulsemcp.com/submit
 Fill in:
 - Name: `buda-mcp`
 - GitHub: `https://github.com/gtorreal/buda-mcp`
-- npm: `@gtorreal/buda-mcp`
+- npm: `@guiie/buda-mcp`
 - Description: copy from `marketplace/claude-listing.md`
 
 ### Glama.ai

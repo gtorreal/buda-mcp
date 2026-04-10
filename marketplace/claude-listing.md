@@ -3,7 +3,7 @@
 **Category:** Finance / Cryptocurrency  
 **Auth:** None required  
 **Transport:** stdio  
-**npm:** `@gtorreal/buda-mcp`  
+**npm:** `@guiie/buda-mcp`  
 **Registry name:** `io.github.gtorreal/buda-mcp`
 
 ---
@@ -55,7 +55,7 @@ Recent trade history. Each entry: `[timestamp_ms, amount, price, direction]`.
 
 **Claude Code (claude CLI)**
 ```bash
-claude mcp add buda-mcp -- npx -y @gtorreal/buda-mcp
+claude mcp add buda-mcp -- npx -y @guiie/buda-mcp
 ```
 
 **Claude Desktop (`claude_desktop_config.json`)**
@@ -64,7 +64,7 @@ claude mcp add buda-mcp -- npx -y @gtorreal/buda-mcp
   "mcpServers": {
     "buda-mcp": {
       "command": "npx",
-      "args": ["-y", "@gtorreal/buda-mcp"]
+      "args": ["-y", "@guiie/buda-mcp"]
     }
   }
 }
@@ -93,5 +93,5 @@ cd buda-mcp && npm install && npm run build
 ## Source
 
 - GitHub: https://github.com/gtorreal/buda-mcp  
-- npm: https://www.npmjs.com/package/@gtorreal/buda-mcp  
+- npm: https://www.npmjs.com/package/@guiie/buda-mcp  
 - Buda.com API docs: https://api.buda.com/en/
