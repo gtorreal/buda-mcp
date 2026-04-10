@@ -36,7 +36,15 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npm run build
-      - run: npm publish --access public --provenance
+      - name: Publish (skip if version already exists)
+        run: |
+          PKG=$(node -e "console.log(require('./package.json').name)")
+          VER=$(node -e "console.log(require('./package.json').version)")
+          if npm view "${PKG}@${VER}" version &>/dev/null; then
+            echo "Version ${VER} already published — skipping npm publish."
+          else
+            npm publish --access public --provenance
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -45,6 +53,8 @@ jobs:
     name: Publish to MCP Registry
     needs: npm
     runs-on: ubuntu-latest
+    env:
+      MCP_REGISTRY_TOKEN: ${{ secrets.MCP_REGISTRY_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Install mcp-publisher
@@ -52,7 +62,7 @@ jobs:
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
             | tar xz mcp-publisher
           sudo mv mcp-publisher /usr/local/bin/
-      - name: Publish to MCP Registry
-        run: mcp-publisher publish
-        env:
-          MCP_REGISTRY_TOKEN: ${{ secrets.MCP_REGISTRY_TOKEN }}
+      - name: Authenticate and publish to MCP Registry
+        run: |
+          mcp-publisher login token "$MCP_REGISTRY_TOKEN"
+          mcp-publisher publish
