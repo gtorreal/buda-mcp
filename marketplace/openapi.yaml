@@ -4,14 +4,14 @@ info:
   description: |
     Real-time cryptocurrency market data from Buda.com — the leading exchange
     in Chile (CLP), Colombia (COP), and Peru (PEN).
-    Provides live prices, order books, trade history, and volume for all markets.
-    No authentication required.
+    Provides live prices, spreads, OHLCV history, order books, trade history, and volume for all markets.
+    No authentication required for public tools.
 
     **Note:** This spec describes a deployed HTTP wrapper around the buda-mcp
     stdio server. Deploy locally with mcp-proxy:
-      mcp-proxy --port 8000 -- npx -y @guiie/buda-mcp
+      mcp-proxy --port 8000 -- npx -y @gtorreal/buda-mcp
     Or point `servers[0].url` at your hosted instance.
-  version: 1.0.0
+  version: 1.1.0
   contact:
     url: https://github.com/gtorreal/buda-mcp
 
@@ -175,6 +175,99 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /get_spread:
+    get:
+      operationId: getSpread
+      summary: Bid/ask spread for a market
+      description: |
+        Returns the best bid price, best ask price, absolute spread, and spread as a percentage
+        of the ask price. Useful for assessing market liquidity.
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC-CLP
+      responses:
+        "200":
+          description: Spread data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpreadResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /compare_markets:
+    get:
+      operationId: compareMarkets
+      summary: Compare all pairs of a base currency side by side
+      description: |
+        Returns ticker data for all trading pairs of a given base currency across all supported
+        quote currencies (CLP, COP, PEN, USDC, BTC, ETH). For example, base_currency=BTC returns
+        data for BTC-CLP, BTC-COP, BTC-PEN, and BTC-USDC.
+      parameters:
+        - name: base_currency
+          in: query
+          required: true
+          description: Base currency to compare (e.g. "BTC", "ETH"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC
+      responses:
+        "200":
+          description: Comparison of all pairs for the given base currency
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompareMarketsResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /get_price_history:
+    get:
+      operationId: getPriceHistory
+      summary: OHLCV price history derived from trade history
+      description: |
+        Returns OHLCV (open/high/low/close/volume) candles derived from recent trade history.
+        Buda.com has no native candlestick endpoint; candles are aggregated client-side from
+        up to 100 raw trades. Supports 1h, 4h, and 1d candle periods.
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC-CLP
+        - name: period
+          in: query
+          required: false
+          description: Candle period. One of "1h", "4h", "1d". Default is "1h".
+          schema:
+            type: string
+            enum: ["1h", "4h", "1d"]
+            default: "1h"
+        - name: limit
+          in: query
+          required: false
+          description: Number of raw trades to fetch before aggregation (default 100, max 100).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: OHLCV candles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceHistoryResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   schemas:
     Amount:
@@ -334,11 +427,118 @@ components:
             bid_volume_7d:
               $ref: "#/components/schemas/Amount"
 
+    SpreadResponse:
+      type: object
+      properties:
+        market_id:
+          type: string
+          example: BTC-CLP
+        currency:
+          type: string
+          example: CLP
+        best_bid:
+          type: string
+          example: "65221128.0"
+        best_ask:
+          type: string
+          example: "65727568.0"
+        spread_absolute:
+          type: string
+          example: "506440.00"
+        spread_percentage:
+          type: string
+          example: "0.7705%"
+        last_price:
+          type: string
+          example: "65221078.43"
+
+    CompareMarketsResponse:
+      type: object
+      properties:
+        base_currency:
+          type: string
+          example: BTC
+        markets:
+          type: array
+          items:
+            type: object
+            properties:
+              market_id:
+                type: string
+                example: BTC-CLP
+              last_price:
+                type: string
+                example: "65221078.43"
+              currency:
+                type: string
+                example: CLP
+              best_bid:
+                type: string
+              best_ask:
+                type: string
+              volume_24h:
+                type: string
+              price_change_24h:
+                type: string
+                example: "0.30%"
+              price_change_7d:
+                type: string
+                example: "-1.20%"
+
+    OhlcvCandle:
+      type: object
+      properties:
+        time:
+          type: string
+          format: date-time
+          example: "2026-04-10T12:00:00.000Z"
+        open:
+          type: string
+          example: "65221078.43"
+        high:
+          type: string
+          example: "65975364.0"
+        low:
+          type: string
+          example: "65164404.87"
+        close:
+          type: string
+          example: "65386647.0"
+        volume:
+          type: string
+          example: "0.52341200"
+        trade_count:
+          type: integer
+          example: 12
+
+    PriceHistoryResponse:
+      type: object
+      properties:
+        market_id:
+          type: string
+          example: BTC-CLP
+        period:
+          type: string
+          example: "1h"
+        candle_count:
+          type: integer
+          example: 6
+        note:
+          type: string
+        candles:
+          type: array
+          items:
+            $ref: "#/components/schemas/OhlcvCandle"
+
     Error:
       type: object
       properties:
         error:
           type: string
+        code:
+          oneOf:
+            - type: string
+            - type: integer
 
   responses:
     NotFound:

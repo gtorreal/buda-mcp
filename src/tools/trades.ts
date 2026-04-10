@@ -1,9 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { BudaClient } from "../client.js";
+import { BudaClient, BudaApiError } from "../client.js";
+import { MemoryCache } from "../cache.js";
 import type { TradesResponse } from "../types.js";
 
-export function register(server: McpServer, client: BudaClient): void {
+export function register(server: McpServer, client: BudaClient, _cache: MemoryCache): void {
   server.tool(
     "get_trades",
     "Get recent trade history for a Buda.com market. Each entry contains " +
@@ -28,18 +29,29 @@ export function register(server: McpServer, client: BudaClient): void {
         ),
     },
     async ({ market_id, limit, timestamp }) => {
-      const params: Record<string, string | number> = {};
-      if (limit !== undefined) params.limit = limit;
-      if (timestamp !== undefined) params.timestamp = timestamp;
+      try {
+        const params: Record<string, string | number> = {};
+        if (limit !== undefined) params.limit = limit;
+        if (timestamp !== undefined) params.timestamp = timestamp;
 
-      const data = await client.get<TradesResponse>(
-        `/markets/${market_id.toLowerCase()}/trades`,
-        Object.keys(params).length > 0 ? params : undefined,
-      );
+        const data = await client.get<TradesResponse>(
+          `/markets/${market_id.toLowerCase()}/trades`,
+          Object.keys(params).length > 0 ? params : undefined,
+        );
 
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.trades, null, 2) }],
-      };
+        return {
+          content: [{ type: "text", text: JSON.stringify(data.trades, null, 2) }],
+        };
+      } catch (err) {
+        const msg =
+          err instanceof BudaApiError
+            ? { error: err.message, code: err.status, path: err.path }
+            : { error: String(err), code: "UNKNOWN" };
+        return {
+          content: [{ type: "text", text: JSON.stringify(msg) }],
+          isError: true,
+        };
+      }
     },
   );
 }

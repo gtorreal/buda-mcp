@@ -44,6 +44,10 @@ export interface TickerResponse {
   ticker: Ticker;
 }
 
+export interface AllTickersResponse {
+  tickers: Ticker[];
+}
+
 // ----- Order Book -----
 
 export interface OrderBook {
@@ -61,7 +65,7 @@ export interface Trades {
   timestamp: string;
   last_timestamp: string;
   market_id: string;
-  /** Each entry: [timestamp, amount, price, direction] */
+  /** Each entry: [timestamp_ms, amount, price, direction] */
   entries: [string, string, string, string][];
 }
 
@@ -81,4 +85,51 @@ export interface MarketVolume {
 
 export interface VolumeResponse {
   volume: MarketVolume;
+}
+
+// ----- Balances (private) -----
+
+export interface Balance {
+  id: string;
+  amount: Amount;
+  available_amount: Amount;
+  frozen_amount: Amount;
+  pending_withdraw_amount: Amount;
+}
+
+export interface BalancesResponse {
+  balances: Balance[];
+}
+
+// ----- Orders (private) -----
+
+export interface Order {
+  id: number;
+  type: string;
+  state: string;
+  created_at: string;
+  market_id: string;
+  fee_currency: string;
+  price_type: string;
+  order_type: string;
+  client_id: string | null;
+  limit: Amount | null;
+  amount: Amount;
+  original_amount: Amount;
+  traded_amount: Amount;
+  total_exchanged: Amount;
+  paid_fee: Amount;
+}
+
+export interface OrderResponse {
+  order: Order;
+}
+
+export interface OrdersResponse {
+  orders: Order[];
+  meta: {
+    current_page: number;
+    total_count: number;
+    total_pages: number;
+  };
 }

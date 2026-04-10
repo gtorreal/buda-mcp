@@ -1,5 +1,5 @@
 {
-  "_comment": "Gemini function declarations for buda-mcp. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
+  "_comment": "Gemini function declarations for buda-mcp v1.1.0. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
   "functionDeclarations": [
     {
       "name": "get_markets",
@@ -78,6 +78,56 @@
           "market_id": {
             "type": "STRING",
             "description": "Market identifier such as 'BTC-CLP', 'ETH-COP', or 'ETH-BTC'. Case-insensitive."
+          }
+        },
+        "required": ["market_id"]
+      }
+    },
+    {
+      "name": "get_spread",
+      "description": "Calculate the bid/ask spread for a Buda.com market. Returns the best bid price, best ask price, absolute spread, and spread as a percentage of the ask price. Useful for assessing market liquidity.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market identifier such as 'BTC-CLP', 'ETH-COP', or 'ETH-BTC'. Case-insensitive."
+          }
+        },
+        "required": ["market_id"]
+      }
+    },
+    {
+      "name": "compare_markets",
+      "description": "Compare ticker data side-by-side for all trading pairs of a given base currency across Buda.com's supported quote currencies (CLP, COP, PEN, USDC, BTC, ETH). For example, 'BTC' returns data for BTC-CLP, BTC-COP, BTC-PEN, and BTC-USDC.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "base_currency": {
+            "type": "STRING",
+            "description": "Base currency to compare across all available markets. Examples: 'BTC', 'ETH', 'XRP'. Case-insensitive."
+          }
+        },
+        "required": ["base_currency"]
+      }
+    },
+    {
+      "name": "get_price_history",
+      "description": "Get OHLCV (open/high/low/close/volume) price history for a Buda.com market, derived from recent trade history. Candles are aggregated client-side from up to 100 raw trades. Supports 1h, 4h, and 1d candle periods.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market identifier such as 'BTC-CLP' or 'ETH-BTC'. Case-insensitive."
+          },
+          "period": {
+            "type": "STRING",
+            "description": "Candle period: '1h' (1 hour), '4h' (4 hours), or '1d' (1 day). Default is '1h'."
+          },
+          "limit": {
+            "type": "INTEGER",
+            "description": "Number of raw trades to fetch before aggregation. Default is 100, maximum is 100."
           }
         },
         "required": ["market_id"]

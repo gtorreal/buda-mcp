@@ -2,8 +2,8 @@
   "mcpServers": {
     "buda-mcp": {
       "command": "npx",
-      "args": ["-y", "@guiie/buda-mcp"],
-      "description": "Buda.com cryptocurrency exchange — real-time market data for Chile, Colombia, and Peru"
+      "args": ["-y", "@gtorreal/buda-mcp"],
+      "description": "Buda.com cryptocurrency exchange — real-time market data, spreads, OHLCV history, and account tools for Chile, Colombia, and Peru"
     }
   }
 }

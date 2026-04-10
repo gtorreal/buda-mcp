@@ -1,9 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { BudaClient } from "../client.js";
+import { BudaClient, BudaApiError } from "../client.js";
+import { MemoryCache, CACHE_TTL } from "../cache.js";
 import type { TickerResponse } from "../types.js";
 
-export function register(server: McpServer, client: BudaClient): void {
+export function register(server: McpServer, client: BudaClient, cache: MemoryCache): void {
   server.tool(
     "get_ticker",
     "Get the current ticker for a Buda.com market: last traded price, best bid/ask, " +
@@ -14,12 +15,26 @@ export function register(server: McpServer, client: BudaClient): void {
         .describe("Market ID (e.g. 'BTC-CLP', 'ETH-BTC', 'BTC-COP')."),
     },
     async ({ market_id }) => {
-      const data = await client.get<TickerResponse>(
-        `/markets/${market_id.toLowerCase()}/ticker`,
-      );
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.ticker, null, 2) }],
-      };
+      try {
+        const id = market_id.toLowerCase();
+        const data = await cache.getOrFetch<TickerResponse>(
+          `ticker:${id}`,
+          CACHE_TTL.TICKER,
+          () => client.get<TickerResponse>(`/markets/${id}/ticker`),
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify(data.ticker, null, 2) }],
+        };
+      } catch (err) {
+        const msg =
+          err instanceof BudaApiError
+            ? { error: err.message, code: err.status, path: err.path }
+            : { error: String(err), code: "UNKNOWN" };
+        return {
+          content: [{ type: "text", text: JSON.stringify(msg) }],
+          isError: true,
+        };
+      }
     },
   );
 }
