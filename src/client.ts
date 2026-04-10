@@ -68,7 +68,7 @@ export class BudaClient {
     const urlPath = url.pathname + url.search;
     const headers: Record<string, string> = {
       Accept: "application/json",
-      "User-Agent": "buda-mcp/1.1.0",
+      "User-Agent": "buda-mcp/1.1.1",
       ...this.authHeaders("GET", urlPath),
     };
 
@@ -95,7 +95,7 @@ export class BudaClient {
     const headers: Record<string, string> = {
       Accept: "application/json",
       "Content-Type": "application/json",
-      "User-Agent": "buda-mcp/1.1.0",
+      "User-Agent": "buda-mcp/1.1.1",
       ...this.authHeaders("POST", urlPath, bodyStr),
     };
 
@@ -126,7 +126,7 @@ export class BudaClient {
     const headers: Record<string, string> = {
       Accept: "application/json",
       "Content-Type": "application/json",
-      "User-Agent": "buda-mcp/1.1.0",
+      "User-Agent": "buda-mcp/1.1.1",
       ...this.authHeaders("PUT", urlPath, bodyStr),
     };
 

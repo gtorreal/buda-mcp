@@ -65,10 +65,16 @@ export function register(server: McpServer, client: BudaClient, _cache: MemoryCa
           };
         }
 
+        // Buda returns trades newest-first; sort ascending so open = first chronological price
+        // and close = last chronological price within each candle bucket.
+        const sortedEntries = [...entries].sort(
+          ([a], [b]) => parseInt(a, 10) - parseInt(b, 10),
+        );
+
         const periodMs = PERIOD_MS[period];
         const buckets = new Map<number, OhlcvCandle>();
 
-        for (const [tsMs, amount, price, _direction] of entries) {
+        for (const [tsMs, amount, price, _direction] of sortedEntries) {
           const ts = parseInt(tsMs, 10);
           const bucketStart = Math.floor(ts / periodMs) * periodMs;
           const p = parseFloat(price);

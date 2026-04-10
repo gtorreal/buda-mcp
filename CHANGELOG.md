@@ -7,6 +7,20 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.2] – 2026-04-10
+
+### Fixed
+
+- **`get_price_history` OHLCV open/close reversed**: Buda returns trades newest-first; entries
+  are now sorted ascending by timestamp before candle aggregation so `open` is the
+  chronologically first price and `close` is the chronologically last price in each bucket.
+- **Cache double-fetch race condition**: `MemoryCache.getOrFetch` now deduplicates concurrent
+  requests for the same expired/missing key by storing the in-flight `Promise` and returning it
+  to all concurrent callers instead of spawning a second fetch.
+- **`User-Agent` version string**: corrected from `buda-mcp/1.1.0` to `buda-mcp/1.1.1` (and now `1.1.2`).
+
+---
+
 ## [1.1.1] – 2026-04-10
 
 ### Fixed
