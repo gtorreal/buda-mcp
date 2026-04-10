@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.gtorreal/buda-mcp",
+  "description": "Real-time cryptocurrency market data from Buda.com — prices, order books, trades, and volume for markets in Chile (CLP), Colombia (COP), and Peru (PEN). No API key required.",
+  "repository": {
+    "url": "https://github.com/gtorreal/buda-mcp",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@gtorreal/buda-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
