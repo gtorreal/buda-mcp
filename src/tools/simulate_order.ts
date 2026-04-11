@@ -99,7 +99,7 @@ export async function handleSimulateOrder(
     }
 
     const mid = (minAsk + maxBid) / 2;
-    const takerFeeRate = parseFloat(market.taker_fee);
+    const takerFeeRate = parseFloat(market.taker_fee) / 100;
     const orderTypeAssumed = price !== undefined ? "limit" : "market";
 
     let estimatedFillPrice: number;

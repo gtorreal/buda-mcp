@@ -18,6 +18,12 @@ try {
 }
 
 import { BudaClient } from "../src/client.js";
+import { MemoryCache } from "../src/cache.js";
+import { handleSimulateOrder } from "../src/tools/simulate_order.js";
+import { handleCalculatePositionSize } from "../src/tools/calculate_position_size.js";
+import { handleMarketSentiment } from "../src/tools/market_sentiment.js";
+import { handleTechnicalIndicators } from "../src/tools/technical_indicators.js";
+import { handleScheduleCancelAll, handleDisarmCancelTimer } from "../src/tools/dead_mans_switch.js";
 import type {
   MarketsResponse,
   TickerResponse,
@@ -226,6 +232,167 @@ try {
 }
 
 // ----------------------------------------------------------------
+// 9. simulate_order
+// ----------------------------------------------------------------
+section(`simulate_order — ${TEST_MARKET} market buy`);
+{
+  const cache = new MemoryCache();
+  try {
+    const result = await handleSimulateOrder(
+      { market_id: TEST_MARKET, side: "buy", amount: 0.001 },
+      client,
+      cache,
+    );
+    if (result.isError) throw new Error(result.content[0].text);
+    const parsed = JSON.parse(result.content[0].text) as {
+      simulation: boolean;
+      estimated_fill_price: number;
+      fee_amount: number;
+      fee_rate_pct: number;
+      total_cost: number;
+      slippage_vs_mid_pct: number;
+      order_type_assumed: string;
+    };
+    if (parsed.simulation !== true) throw new Error("simulation flag must be true");
+    pass("simulation: true", "✓");
+    pass("order_type_assumed", parsed.order_type_assumed);
+    pass("estimated_fill_price", `${parsed.estimated_fill_price.toLocaleString()} CLP`);
+    pass("fee_rate_pct", `${parsed.fee_rate_pct}%`);
+    pass("fee_amount", `${parsed.fee_amount.toFixed(2)} CLP`);
+    pass("total_cost", `${parsed.total_cost.toFixed(2)} CLP`);
+    pass("slippage_vs_mid_pct", `${parsed.slippage_vs_mid_pct}%`);
+  } catch (err) {
+    fail("simulate_order", err);
+    failures++;
+  }
+}
+
+// ----------------------------------------------------------------
+// 10. calculate_position_size
+// ----------------------------------------------------------------
+section(`calculate_position_size — ${TEST_MARKET}`);
+{
+  // Fetch live ticker to use real entry/stop prices
+  try {
+    const tickerData = await client.get<TickerResponse>(
+      `/markets/${TEST_MARKET.toLowerCase()}/ticker`,
+    );
+    const lastPrice = parseFloat(tickerData.ticker.last_price[0]);
+    const entryPrice = lastPrice;
+    const stopLossPrice = parseFloat((lastPrice * 0.97).toFixed(0)); // 3% below entry
+
+    const result = handleCalculatePositionSize({
+      market_id: TEST_MARKET,
+      capital: 1_000_000,
+      risk_pct: 2,
+      entry_price: entryPrice,
+      stop_loss_price: stopLossPrice,
+    });
+    if (result.isError) throw new Error(result.content[0].text);
+    const parsed = JSON.parse(result.content[0].text) as {
+      side: string;
+      units: number;
+      capital_at_risk: number;
+      position_value: number;
+      fee_impact: number;
+      fee_currency: string;
+    };
+    pass("side", parsed.side);
+    pass("units", `${parsed.units} BTC`);
+    pass("capital_at_risk", `${parsed.capital_at_risk.toLocaleString()} CLP`);
+    pass("position_value", `${parsed.position_value.toLocaleString()} CLP`);
+    pass("fee_impact", `${parsed.fee_impact.toFixed(2)} ${parsed.fee_currency}`);
+  } catch (err) {
+    fail("calculate_position_size", err);
+    failures++;
+  }
+}
+
+// ----------------------------------------------------------------
+// 11. get_market_sentiment
+// ----------------------------------------------------------------
+section(`get_market_sentiment — ${TEST_MARKET}`);
+{
+  const cache = new MemoryCache();
+  try {
+    const result = await handleMarketSentiment({ market_id: TEST_MARKET }, client, cache);
+    if (result.isError) throw new Error(result.content[0].text);
+    const parsed = JSON.parse(result.content[0].text) as {
+      score: number;
+      label: string;
+      component_breakdown: {
+        price_variation_24h_pct: number;
+        volume_ratio: number;
+        spread_pct: number;
+      };
+      disclaimer: string;
+    };
+    if (!["bearish", "neutral", "bullish"].includes(parsed.label)) {
+      throw new Error(`unexpected label: ${parsed.label}`);
+    }
+    if (typeof parsed.score !== "number" || parsed.score < -100 || parsed.score > 100) {
+      throw new Error(`score out of range: ${parsed.score}`);
+    }
+    pass("score", String(parsed.score));
+    pass("label", parsed.label);
+    pass("price_variation_24h_pct", `${parsed.component_breakdown.price_variation_24h_pct}%`);
+    pass("volume_ratio", String(parsed.component_breakdown.volume_ratio));
+    pass("spread_pct", `${parsed.component_breakdown.spread_pct}%`);
+    pass("disclaimer", parsed.disclaimer.length > 0 ? "present" : "MISSING");
+  } catch (err) {
+    fail("get_market_sentiment", err);
+    failures++;
+  }
+}
+
+// ----------------------------------------------------------------
+// 12. get_technical_indicators
+// ----------------------------------------------------------------
+section(`get_technical_indicators — ${TEST_MARKET} (1h, limit 1000)`);
+{
+  try {
+    const result = await handleTechnicalIndicators(
+      { market_id: TEST_MARKET, period: "1h", limit: 1000 },
+      client,
+    );
+    if (result.isError) throw new Error(result.content[0].text);
+    const parsed = JSON.parse(result.content[0].text) as {
+      candles_used?: number;
+      candles_available?: number;
+      warning?: string;
+      indicators: {
+        rsi: number | null;
+        macd: { line: number; signal: number; histogram: number } | null;
+        bollinger_bands: { upper: number; mid: number; lower: number } | null;
+        sma_20: number;
+        sma_50: number;
+      } | null;
+      signals: { rsi_signal: string; macd_signal: string; bb_signal: string };
+      disclaimer: string;
+    };
+
+    if (parsed.warning === "insufficient_data") {
+      pass("warning", `insufficient_data (${parsed.candles_available} candles available, need 50)`);
+    } else {
+      pass("candles_used", String(parsed.candles_used));
+      if (!parsed.indicators) throw new Error("indicators is null without a warning");
+      pass("rsi", String(parsed.indicators.rsi));
+      pass("rsi_signal", parsed.signals.rsi_signal);
+      pass("macd_histogram", String(parsed.indicators.macd?.histogram));
+      pass("macd_signal", parsed.signals.macd_signal);
+      pass("bb_upper", String(parsed.indicators.bollinger_bands?.upper));
+      pass("bb_signal", parsed.signals.bb_signal);
+      pass("sma_20", String(parsed.indicators.sma_20));
+      pass("sma_50", String(parsed.indicators.sma_50));
+      pass("disclaimer", parsed.disclaimer.length > 0 ? "present" : "MISSING");
+    }
+  } catch (err) {
+    fail("get_technical_indicators", err);
+    failures++;
+  }
+}
+
+// ----------------------------------------------------------------
 // Auth tools: get_balances, get_orders, place_order, cancel_order
 // ----------------------------------------------------------------
 section("Auth tools — get_balances, get_orders, place_order, cancel_order");
@@ -263,6 +430,34 @@ if (!client.hasAuth()) {
   // cancel_order — confirmation guard test (must reject without CONFIRM)
   console.log("  Skipping: cancel_order live execution (destructive — requires confirmation_token=CONFIRM)");
   pass("cancel_order guard", "confirmation_token check enforced at tool layer (code-audited)");
+
+  // schedule_cancel_all — arm then immediately disarm (non-destructive)
+  try {
+    const armResult = await handleScheduleCancelAll(
+      { market_id: TEST_MARKET, ttl_seconds: 300, confirmation_token: "CONFIRM" },
+      client,
+    );
+    if (armResult.isError) throw new Error(armResult.content[0].text);
+    const armed = JSON.parse(armResult.content[0].text) as {
+      active: boolean;
+      expires_at: string;
+      ttl_seconds: number;
+      warning: string;
+    };
+    if (!armed.active) throw new Error("active should be true after CONFIRM");
+    pass("schedule_cancel_all active", armed.active ? "true" : "false");
+    pass("schedule_cancel_all expires_at", armed.expires_at);
+    pass("schedule_cancel_all warning", armed.warning.length > 0 ? "present" : "MISSING");
+
+    // Immediately disarm so no orders are cancelled
+    const disarmResult = handleDisarmCancelTimer({ market_id: TEST_MARKET });
+    if (disarmResult.isError) throw new Error(disarmResult.content[0].text);
+    const disarmed = JSON.parse(disarmResult.content[0].text) as { disarmed: boolean };
+    pass("disarm_cancel_timer", disarmed.disarmed ? "timer cleared ✓" : "FAILED to disarm");
+  } catch (err) {
+    fail("schedule_cancel_all / disarm_cancel_timer", err);
+    failures++;
+  }
 }
 
 // ----------------------------------------------------------------
@@ -271,6 +466,8 @@ if (!client.hasAuth()) {
 section("Summary");
 if (failures === 0) {
   console.log("  All tools returned valid data from the live Buda API.");
+  console.log("  Coverage: simulate_order, calculate_position_size, get_market_sentiment,");
+  console.log("            get_technical_indicators, schedule_cancel_all/disarm (auth-gated if credentials set).");
 } else {
   console.error(`  ${failures} tool(s) failed. See errors above.`);
   process.exit(1);

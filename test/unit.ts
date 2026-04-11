@@ -666,7 +666,7 @@ await test("handleMarketSummary returns correct liquidity_rating from mocked API
 
 section("i. simulate_order");
 
-function makeMockFetchForSimulate(takerFee = "0.008"): typeof fetch {
+function makeMockFetchForSimulate(takerFee = "0.8"): typeof fetch {
   const mockTicker = {
     ticker: {
       market_id: "BTC-CLP",
@@ -720,7 +720,7 @@ await test("market buy: estimated_fill_price = min_ask, simulation: true", async
     assertEqual(parsed.simulation, true, "simulation flag must be true");
     assertEqual(parsed.estimated_fill_price, 65100000, "market buy fills at min_ask");
     assertEqual(parsed.order_type_assumed, "market", "order_type_assumed should be market");
-    assertEqual(parsed.fee_rate_pct, 0.8, "fee rate should be 0.8% for crypto");
+    assertEqual(parsed.fee_rate_pct, 0.8, "fee_rate_pct should be 0.8 for crypto (0.8% taker fee)");
   } finally {
     globalThis.fetch = savedFetch;
   }
@@ -758,14 +758,14 @@ await test("limit order: order_type_assumed = 'limit'", async () => {
 
 await test("stablecoin market uses 0.5% fee", async () => {
   const savedFetch = globalThis.fetch;
-  globalThis.fetch = makeMockFetchForSimulate("0.005");
+  globalThis.fetch = makeMockFetchForSimulate("0.5");
   try {
     const client = new BudaClient("https://www.buda.com/api/v2");
     const cache = new MemoryCache();
     const result = await handleSimulateOrder({ market_id: "BTC-CLP", side: "buy", amount: 1 }, client, cache);
     assert(!result.isError, "should not be an error");
     const parsed = JSON.parse(result.content[0].text) as { fee_rate_pct: number };
-    assertEqual(parsed.fee_rate_pct, 0.5, "fee_rate_pct should be 0.5 for stablecoin");
+    assertEqual(parsed.fee_rate_pct, 0.5, "fee_rate_pct should be 0.5 for stablecoin (0.5% taker fee)");
   } finally {
     globalThis.fetch = savedFetch;
   }
