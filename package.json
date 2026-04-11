@@ -1,6 +1,6 @@
 {
   "name": "@guiie/buda-mcp",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "mcpName": "io.github.gtorreal/buda-mcp",
   "description": "MCP server for Buda.com's public cryptocurrency exchange API (Chile, Colombia, Peru)",
   "type": "module",
