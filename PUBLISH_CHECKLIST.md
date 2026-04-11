@@ -1,6 +1,6 @@
-# Publish Checklist — buda-mcp v1.5.0
+# Publish Checklist — buda-mcp v1.5.1
 
-Steps to publish `v1.5.0` to npm, the MCP registry, and notify community directories.
+Steps to publish `v1.5.1` to npm, the MCP registry, and notify community directories.
 
 ---
 
@@ -8,7 +8,7 @@ Steps to publish `v1.5.0` to npm, the MCP registry, and notify community directo
 
 ```bash
 # Confirm version
-node -e "console.log(require('./package.json').version)"  # should print 1.5.0
+node -e "console.log(require('./package.json').version)"  # should print 1.5.1
 
 # Build and test
 npm run build
@@ -37,9 +37,9 @@ Verify: https://www.npmjs.com/package/@guiie/buda-mcp
 
 ## 3. GitHub release
 
-Tag and release already created via `gh release create v1.5.0`. Verify at:
+Tag and release already created via `gh release create v1.5.1`. Verify at:
 
-https://github.com/gtorreal/buda-mcp/releases/tag/v1.5.0
+https://github.com/gtorreal/buda-mcp/releases/tag/v1.5.1
 
 ---
 
@@ -64,22 +64,20 @@ Verify: https://smithery.ai/server/@guiie/buda-mcp
 **Email/message template:**
 
 ```
-Subject: [Update] buda-mcp v1.5.0 — Withdrawals, Deposits, Batch Orders & Lightning
+Subject: [Update] buda-mcp v1.5.1 — Security hardening release
 
 Hi mcp.so team,
 
-I've released v1.5.0 of buda-mcp (@guiie/buda-mcp on npm).
+I've released v1.5.1 of buda-mcp (@guiie/buda-mcp on npm).
 
-Key changes (8 new authenticated tools):
-- cancel_all_orders: cancel all open orders (one market or all markets)
-- cancel_order_by_client_id: cancel by client-assigned string ID
-- place_batch_orders: place up to 20 orders with pre-validation (no rollback on partial failure)
-- place_order extended: TIF flags (ioc/fok/post_only/gtd) + stop orders
-- create_withdrawal: crypto (address) or fiat (bank_account_id) withdrawals
-- create_fiat_deposit: record fiat deposits with duplicate guard
-- lightning_withdrawal: pay a BOLT-11 invoice from LN-BTC reserve
-- create_lightning_invoice: create a Lightning receive invoice
-- 138 unit tests (was 106)
+Key changes (security hardening, no new tools):
+- HTTP startup guard: server exits if credentials are set without MCP_AUTH_TOKEN
+- Rate limiting: 120 req/min per IP on /mcp (configurable via MCP_RATE_LIMIT)
+- Crypto address validation in create_withdrawal (BTC, ETH, USDC, USDT, LTC, BCH, XRP)
+- BOLT-11 invoice format validation in lightning_withdrawal
+- Dead man's switch blocked on HTTP transport (process restarts drop timers)
+- place_batch_orders: optional max_notional spending cap
+- 156 unit tests (was 136)
 
 Links:
 - npm: https://www.npmjs.com/package/@guiie/buda-mcp
@@ -98,24 +96,24 @@ Thank you!
 **Message template:**
 
 ```
-Subject: [Update] buda-mcp v1.5.0
+Subject: [Update] buda-mcp v1.5.1
 
 Hi Glama team,
 
-buda-mcp has been updated to v1.5.0.
+buda-mcp has been updated to v1.5.1.
 
 Package: @guiie/buda-mcp (npm)
 Registry: io.github.gtorreal/buda-mcp (MCP Registry)
-Version: 1.5.0
+Version: 1.5.1
 
-Changes (8 new authenticated tools):
-- cancel_all_orders / cancel_order_by_client_id: flexible order cancellation
-- place_batch_orders: sequential multi-order placement with pre-validation
-- place_order extended: IOC/FOK/post_only/GTD + stop orders
-- create_withdrawal: crypto + fiat withdrawals
-- create_fiat_deposit: fiat deposit recording
-- lightning_withdrawal + create_lightning_invoice: Lightning Network support
-- 138 unit tests
+Changes (security hardening):
+- HTTP startup guard for missing MCP_AUTH_TOKEN
+- Rate limiting on /mcp (120 req/min per IP)
+- Crypto address format validation in create_withdrawal
+- BOLT-11 invoice validation in lightning_withdrawal
+- Dead man's switch blocked on HTTP transport
+- place_batch_orders: optional max_notional cap
+- 156 unit tests
 
 Quick start:
   npx @guiie/buda-mcp
@@ -130,21 +128,22 @@ Thank you!
 
 ## 8. Post-publish verification
 
-- [ ] `npx @guiie/buda-mcp@1.5.0` starts successfully
-- [ ] `npm info @guiie/buda-mcp version` returns `1.5.0`
-- [ ] GitHub release tag `v1.5.0` is visible ✅ (already created)
-- [ ] MCP Registry entry reflects v1.5.0
-- [ ] Smithery server card lists all new tools
-- [ ] `GET /health` returns `"version":"1.5.0"` on Railway deployment
-- [ ] `cancel_all_orders` requires `confirmation_token="CONFIRM"` (test with wrong token)
-- [ ] `place_batch_orders` returns pre-validation error for invalid market (zero API calls)
-- [ ] `lightning_withdrawal` shows invoice preview in CONFIRMATION_REQUIRED response
-- [ ] `create_lightning_invoice` succeeds without confirmation token
+- [ ] `npx @guiie/buda-mcp@1.5.1` starts successfully
+- [ ] `npm info @guiie/buda-mcp version` returns `1.5.1`
+- [ ] GitHub release tag `v1.5.1` is visible
+- [ ] MCP Registry entry reflects v1.5.1
+- [ ] Smithery server card lists all tools
+- [ ] `GET /health` returns `"version":"1.5.1"` on Railway deployment
+- [ ] HTTP server exits if `BUDA_API_KEY` set but `MCP_AUTH_TOKEN` is absent
+- [ ] `create_withdrawal` rejects a truncated BTC address with `INVALID_ADDRESS`
+- [ ] `lightning_withdrawal` rejects a non-BOLT11 string with `INVALID_INVOICE`
+- [ ] `place_batch_orders` with `max_notional` rejects over-cap batch before API call
+- [ ] `schedule_cancel_all` via HTTP returns `TRANSPORT_NOT_SUPPORTED`
 - [ ] mcp.so listing updated
 - [ ] Glama.ai listing updated
 
 ---
 
-## ARCHIVED: v1.4.x checklists
+## ARCHIVED: previous checklists
 
-See git tags `v1.4.0`, `v1.4.1`, `v1.4.2` for previous release notes and verification steps.
+See git tags `v1.5.0`, `v1.4.0`, `v1.4.1`, `v1.4.2` for previous release notes and verification steps.

@@ -751,13 +751,17 @@
     },
     {
       "name": "place_batch_orders",
-      "description": "Places up to 20 orders sequentially on Buda.com. All orders are pre-validated before any API call. Partial failures do not roll back placed orders. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
+      "description": "Places up to 20 orders sequentially on Buda.com. All orders are pre-validated before any API call. Partial failures do not roll back placed orders. Use max_notional to cap total exposure (sum of amount x limit_price for limit orders; market orders contribute 0). IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
       "parameters": {
         "type": "OBJECT",
         "properties": {
           "orders": {
             "type": "ARRAY",
             "description": "Array of 1–20 orders to place. Each order: market_id, type (Bid/Ask), price_type (limit/market), amount, optional limit_price."
+          },
+          "max_notional": {
+            "type": "NUMBER",
+            "description": "Optional spending cap: total notional (sum of amount x limit_price for limit orders). Batch is rejected before any API call if exceeded. Market orders contribute 0."
           },
           "confirmation_token": {
             "type": "STRING",
@@ -769,7 +773,7 @@
     },
     {
       "name": "create_withdrawal",
-      "description": "Creates a crypto or fiat withdrawal on Buda.com. Exactly one of address (crypto) or bank_account_id (fiat) must be provided. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
+      "description": "Creates a crypto or fiat withdrawal on Buda.com. Exactly one of address (crypto) or bank_account_id (fiat) must be provided. WARNING: Crypto withdrawals are irreversible — verify the destination address carefully. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
       "parameters": {
         "type": "OBJECT",
         "properties": {

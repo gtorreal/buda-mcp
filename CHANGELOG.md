@@ -9,6 +9,10 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [1.5.1] – 2026-04-11
+
 ### Security
 
 - **HTTP startup guard for missing `MCP_AUTH_TOKEN`** — when `BUDA_API_KEY`/`BUDA_API_SECRET` are present but `MCP_AUTH_TOKEN` is not set, the HTTP server now exits with a `FATAL` error at startup instead of silently leaving the `/mcp` endpoint publicly accessible. This closes the opt-in footgun where operators could deploy credentials without a protecting token.
@@ -20,6 +24,8 @@ This project uses [Semantic Versioning](https://semver.org/).
 - **BOLT-11 invoice format validation in `lightning_withdrawal`** — the `invoice` field is now checked against a prefix regex (`/^ln(bc|tb|bcrt)\d/i`) before the API call, rejecting non-invoice strings (e.g. a Bitcoin address pasted by mistake). Zod minimum length tightened from 1 to 50 characters.
 
 - **Dead man's switch blocked on HTTP transport** — `schedule_cancel_all` now returns `TRANSPORT_NOT_SUPPORTED` when called via the HTTP server, where a process restart (deploy, crash, autoscale) silently drops all in-memory timers. `renew_cancel_timer` and `disarm_cancel_timer` remain callable. The `register()` function accepts a new `transport: "stdio" | "http"` parameter (default `"stdio"`).
+
+### Added
 
 - **Batch orders optional notional cap** — `place_batch_orders` now accepts an optional `max_notional` parameter. If the sum of `amount × limit_price` across all limit orders exceeds the cap, the entire batch is rejected before any API call with `NOTIONAL_CAP_EXCEEDED`. Market orders contribute 0 (execution price unknown).
 
@@ -36,14 +42,8 @@ This project uses [Semantic Versioning](https://semver.org/).
 - **Bug: `sma_50` returned incorrect partial average** — `get_technical_indicators` now returns `null` for `sma_50` (with an `sma_50_warning` field) when fewer than 50 candles are available, instead of silently computing an average over fewer points.
 - **Security: `quote_remittance` now requires `confirmation_token="CONFIRM"`** — this tool is non-idempotent (each call creates a new remittance record); the confirmation guard prevents accidental or repeated invocations.
 - **Security: `create_receive_address` now requires `confirmation_token="CONFIRM"`** — this tool is non-idempotent (each call generates a new blockchain address); the confirmation guard prevents accidental repeated calls.
-- **Marketplace docs updated** — `gemini-tools.json`, `claude-listing.md`, `openapi.yaml`, and `README.md` updated to reflect the new `confirmation_token` requirement for `create_receive_address` and `quote_remittance`, and the nullable `sma_50` field.
-
-### Fixed
-
-- **Marketplace documentation gap** — `claude-listing.md`, `gemini-tools.json`, and `openapi.yaml` were missing 18 tools that were already implemented and registered in the server. All three files now reflect the full set of 46 tools:
-  - Public tools added: `get_available_banks`, `get_real_quotation`
-  - Auth tools added: `get_account_info`, `get_balance`, `get_order`, `get_order_by_client_id`, `get_network_fees`, `get_deposit_history`, `get_withdrawal_history`, `create_receive_address`, `list_receive_addresses`, `get_receive_address`, `list_remittance_recipients`, `get_remittance_recipient`, `list_remittances`, `quote_remittance`, `accept_remittance_quote`, `get_remittance`
-  - `openapi.yaml` bumped to version `1.4.0` (was `1.3.0`) and expanded from 14 to 16 paths, adding `get_available_banks` and `get_real_quotation` with full response schemas.
+- **Marketplace docs updated** — `gemini-tools.json`, `claude-listing.md`, `openapi.yaml`, and `README.md` updated to reflect all changes.
+- **Marketplace documentation gap** — `claude-listing.md`, `gemini-tools.json`, and `openapi.yaml` were missing 18 tools that were already implemented and registered in the server. All three files now reflect the full set of 46 tools.
 
 ---
 

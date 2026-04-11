@@ -14,7 +14,7 @@ Real-time market data from [Buda.com](https://www.buda.com/), the leading crypto
 
 Use this server to query live prices, spreads, order books, OHLCV candles, trade history, volume, and cross-market arbitrage opportunities for all BTC, ETH, and altcoin markets quoted in CLP, COP, PEN, and USDC. Optional API credentials unlock account tools for balances, order management, withdrawals, deposits, and Lightning Network payments.
 
-**v1.5.0** adds 8 new authenticated tools: `cancel_all_orders`, `cancel_order_by_client_id`, `place_batch_orders`, extended `place_order` (TIF + stop), `create_withdrawal`, `create_fiat_deposit`, `lightning_withdrawal`, and `create_lightning_invoice`. All response schemas are flat and fully typed.
+**v1.5.1** is a security hardening release: HTTP startup guard for missing `MCP_AUTH_TOKEN`, rate limiting on `/mcp`, crypto address format validation in `create_withdrawal`, BOLT-11 invoice validation in `lightning_withdrawal`, dead man's switch blocked on HTTP transport, and optional `max_notional` cap for `place_batch_orders`.
 
 ---
 
@@ -129,8 +129,8 @@ Fetch a single order by the client-assigned string ID set at placement time.
 **Parameters:** `client_id` *(required)*.
 
 ### `place_batch_orders`
-Place up to 20 orders sequentially. All orders are pre-validated before any API call. Partial failures do not roll back placed orders; a `warning` field surfaces this. Returns `{ results, total, succeeded, failed }`.  
-**Parameters:** `orders` (array of 1–20 order objects), `confirmation_token`.
+Place up to 20 orders sequentially. All orders are pre-validated before any API call. Partial failures do not roll back placed orders; a `warning` field surfaces this. Use `max_notional` to cap total exposure (sum of `amount × limit_price` for limit orders; market orders contribute 0). Returns `{ results, total, succeeded, failed }`.  
+**Parameters:** `orders` (array of 1–20 order objects), `max_notional` *(optional cap)*, `confirmation_token`.
 
 ### `get_network_fees`
 Fee schedule for deposits or withdrawals of a given currency (name, flat fee, minimum, maximum, and whether the fee is a percentage). Useful before initiating a withdrawal.  
@@ -141,7 +141,7 @@ Withdrawal history for a currency, optionally filtered by state and paginated. A
 **Parameters:** `currency` *(required)*, `state` *(optional: `pending_signature`/`pending`/`confirmed`/`rejected`/`anulled`)*, `per` *(optional)*, `page` *(optional)*.
 
 ### `create_withdrawal`
-Create a crypto or fiat withdrawal. Exactly one of `address` (crypto) or `bank_account_id` (fiat) must be provided. Requires `confirmation_token="CONFIRM"`.  
+Create a crypto or fiat withdrawal. Exactly one of `address` (crypto) or `bank_account_id` (fiat) must be provided. **WARNING: Crypto withdrawals are irreversible — verify the destination address carefully before confirming.** Requires `confirmation_token="CONFIRM"`.  
 **Parameters:** `currency`, `amount`, `address` *(crypto)*, `network` *(optional)*, `bank_account_id` *(fiat)*, `confirmation_token`.
 
 ### `get_deposit_history`
