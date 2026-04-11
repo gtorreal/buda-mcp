@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BudaApiError, BudaClient, formatApiError } from "../client.js";
 import { validateCurrency } from "../validation.js";
 import { flattenAmount } from "../utils.js";
+import { logAudit } from "../audit.js";
 import type { DepositsResponse, SingleDepositResponse, Deposit } from "../types.js";
 
 export const getDepositHistoryToolSchema = {
@@ -142,6 +143,7 @@ type CreateFiatDepositArgs = {
 export async function handleCreateFiatDeposit(
   args: CreateFiatDepositArgs,
   client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const { currency, amount, bank, confirmation_token } = args;
 
@@ -180,19 +182,18 @@ export async function handleCreateFiatDeposit(
       payload,
     );
 
-    return {
-      content: [{ type: "text", text: JSON.stringify(normalizeDeposit(data.deposit), null, 2) }],
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(normalizeDeposit(data.deposit), null, 2) }] };
+    logAudit({ ts: new Date().toISOString(), tool: "create_fiat_deposit", transport, args_summary: { currency, amount }, success: true });
+    return result;
   } catch (err) {
     const msg = formatApiError(err);
-    return {
-      content: [{ type: "text", text: JSON.stringify(msg) }],
-      isError: true,
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
+    logAudit({ ts: new Date().toISOString(), tool: "create_fiat_deposit", transport, args_summary: { currency, amount }, success: false, error_code: msg.code });
+    return result;
   }
 }
 
-export function register(server: McpServer, client: BudaClient): void {
+export function register(server: McpServer, client: BudaClient, transport: "http" | "stdio" = "stdio"): void {
   server.tool(
     getDepositHistoryToolSchema.name,
     getDepositHistoryToolSchema.description,
@@ -219,6 +220,6 @@ export function register(server: McpServer, client: BudaClient): void {
         .string()
         .describe("Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."),
     },
-    (args) => handleCreateFiatDeposit(args, client),
+    (args) => handleCreateFiatDeposit(args, client, transport),
   );
 }

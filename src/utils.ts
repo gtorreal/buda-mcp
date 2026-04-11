@@ -18,6 +18,15 @@ export function safeTokenEqual(a: string, b: string): boolean {
 }
 
 /**
+ * Returns true when the token has sufficient entropy for use as a bearer secret.
+ * Requires at least 8 distinct characters, which rejects low-entropy values like
+ * repeated characters (e.g. "aaaa...a") or simple keyboard runs.
+ */
+export function isTokenEntropyOk(token: string): boolean {
+  return new Set(token).size >= 8;
+}
+
+/**
  * Parses a raw string (from an environment variable) as an integer within [min, max].
  * Returns the fallback when raw is undefined.
  * Throws a descriptive Error if the value is non-numeric or out of range.

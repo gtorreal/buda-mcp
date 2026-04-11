@@ -74,6 +74,21 @@ export async function handleCancelOrderByClientId(
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const { client_id, confirmation_token } = args;
 
+  if (client_id.length > 255) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            error: "client_id must not exceed 255 characters.",
+            code: "VALIDATION_ERROR",
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
   if (confirmation_token !== "CONFIRM") {
     return {
       content: [

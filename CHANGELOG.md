@@ -9,6 +9,42 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+
+- **Validation errors no longer reflect user input (prompt-injection fix)** — `validateMarketId` and `validateCurrency` previously embedded the raw caller-supplied string verbatim in their error messages (e.g. `Invalid market ID "${id}"`). An LLM-controlled caller could craft a `market_id` value that injects arbitrary text into the model's context. Both functions now return fixed, static error strings with no user data.
+
+- **`trust proxy` hop count is now configurable via `TRUST_PROXY_HOPS`** — the Express `trust proxy` setting was hardcoded to `1`. If a second reverse-proxy layer is added (e.g. Cloudflare in front of Railway), clients can spoof `X-Forwarded-For` and bypass the IP-based rate limiter. The value is now read from the `TRUST_PROXY_HOPS` env var (default: `1`, range: 0–10) via `parseEnvInt`, which exits with a fatal error on invalid input.
+
+- **`create_fiat_deposit` now emits audit logs** — `handleCreateFiatDeposit` was the only destructive handler that did not call `logAudit`. Both the success and failure paths now emit a structured audit event (tool, transport, currency, amount, success flag) consistent with all other financial operations.
+
+- **API path stripped from client-facing error messages** — `BudaClient.handleResponse` previously included the URL path in the message forwarded to MCP callers (e.g. `"Buda API error 404 on /markets/btc-clp/orders."`). The path is an internal implementation detail and was an unnecessary information disclosure. Client messages are now path-free (`"Buda API error 404."`); the path continues to appear in the server-side `stderr` log.
+
+- **`MCP_AUTH_TOKEN` entropy check added** — a new `isTokenEntropyOk(token)` helper (exported from `src/utils.ts`) requires at least 8 distinct characters in the token. Tokens like `"aaaa...a"` or simple keyboard runs pass the length check but have effectively zero entropy. The check runs at startup alongside the existing length guard and causes `process.exit(1)` on failure.
+
+- **Lightning invoice length capped in handler and Zod schema** — the BOLT-11 regex upper bound was unbounded (`{20,}`); it is now `{20,1800}`. The Zod schema for `invoice` also gains `.max(2000)`. Real BOLT-11 invoices are a few hundred bytes; the old limit allowed a near-10 kb string to be forwarded to the Buda API.
+
+- **Withdrawal `address` field length capped** — the `address` Zod field in `create_withdrawal` now enforces `.max(200)`. For unknown currencies (those not in `ADDRESS_RULES`) the handler passes through without format validation, so an unbounded string could previously reach the upstream API.
+
+- **`gtd_timestamp` capped at 90 days in the future** — `place_order` validated that `gtd_timestamp` is a future datetime but imposed no upper bound. An LLM could hallucinate the year 9999, effectively creating a permanent GTC order. Values more than 90 days ahead now return `VALIDATION_ERROR`.
+
+- **`cancel_order_by_client_id` handler enforces 255-char limit internally** — the Zod schema already capped `client_id` at 255 characters, but the exported handler function `handleCancelOrderByClientId` had no such check. A caller bypassing Zod (e.g. in tests or direct invocation) could supply an unbounded string. The handler now rejects `client_id.length > 255` before all other checks.
+
+- **Nonce counter no longer wraps at 1000** — `BudaClient.nonce()` computed `Date.now() * 1000 + (this._nonceCounter++ % 1000)`. After 1000 calls within the same millisecond the modulo resets to 0, potentially producing a duplicate nonce and causing an HMAC authentication failure with the Buda API. The `% 1000` is removed; the counter now grows monotonically.
+
+### Tests
+
+- 73 new unit tests across 10 new security sections. Total: 233 unit tests.
+  - `L6 — Nonce counter uniqueness` (3 tests)
+  - `L5 — cancel_order_by_client_id handler-level client_id length guard` (3 tests)
+  - `L3 — place_order gtd_timestamp 90-day upper bound` (3 tests)
+  - `L2 — Withdrawal address max length` (3 tests)
+  - `L1 — Lightning invoice max length guard` (2 tests)
+  - `M4 — isTokenEntropyOk: bearer token entropy check` (7 tests)
+  - `H2 — TRUST_PROXY_HOPS range validation` (6 tests)
+  - `H1 — validation error messages do not reflect user input` (4 tests)
+  - `M1 — create_fiat_deposit audit logging` (3 tests)
+  - `M2 — Error messages do not expose API path to callers` (3 tests)
+
 ---
 
 ## [1.5.6] – 2026-04-11

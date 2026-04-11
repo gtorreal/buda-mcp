@@ -223,6 +223,22 @@ export async function handlePlaceOrder(
             isError: true,
           };
         }
+
+        const MAX_GTD_MS = 90 * 24 * 60 * 60 * 1000;
+        if (ts > Date.now() + MAX_GTD_MS) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  error: "gtd_timestamp cannot be more than 90 days in the future.",
+                  code: "VALIDATION_ERROR",
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
       }
 
       let limitType = "gtc";

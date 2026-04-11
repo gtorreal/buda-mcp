@@ -7,7 +7,7 @@ const MARKET_ID_RE = /^[A-Z0-9]{2,10}-[A-Z0-9]{2,10}$/i;
 export function validateMarketId(id: string): string | null {
   if (!MARKET_ID_RE.test(id)) {
     return (
-      `Invalid market ID "${id}". ` +
+      `Invalid market ID. ` +
       `Expected format: BASE-QUOTE with 2–10 alphanumeric characters per part ` +
       `(e.g. "BTC-CLP", "ETH-BTC").`
     );
@@ -24,7 +24,7 @@ const CURRENCY_RE = /^[A-Z0-9]{2,10}$/i;
 export function validateCurrency(id: string): string | null {
   if (!CURRENCY_RE.test(id)) {
     return (
-      `Invalid currency "${id}". ` +
+      `Invalid currency. ` +
       `Expected 2–10 alphanumeric characters (e.g. "BTC", "CLP", "USDC").`
     );
   }

@@ -5,7 +5,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { BudaClient } from "./client.js";
 import { MemoryCache, CACHE_TTL } from "./cache.js";
-import { safeTokenEqual, parseEnvInt } from "./utils.js";
+import { safeTokenEqual, parseEnvInt, isTokenEntropyOk } from "./utils.js";
 import { requestContext } from "./request-context.js";
 import { VERSION } from "./version.js";
 import { validateMarketId } from "./validation.js";
@@ -49,6 +49,17 @@ import { handleMarketSummary } from "./tools/market_summary.js";
 let PORT: number;
 try {
   PORT = parseEnvInt(process.env.PORT, 3000, 1, 65535, "PORT");
+} catch (err) {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+}
+
+let TRUST_PROXY_HOPS: number;
+try {
+  // trust proxy: number of reverse-proxy hops to trust for X-Forwarded-For.
+  // Default 1 = one hop (Railway). Add 1 per additional proxy layer in front (e.g. Cloudflare).
+  // Wrong value allows clients to spoof X-Forwarded-For and bypass IP-based rate limiting.
+  TRUST_PROXY_HOPS = parseEnvInt(process.env.TRUST_PROXY_HOPS, 1, 0, 10, "TRUST_PROXY_HOPS");
 } catch (err) {
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
@@ -149,7 +160,7 @@ function createServer(): McpServer {
     balance.register(server, client);
     orderLookup.register(server, client);
     networkFees.register(server, client);
-    deposits.register(server, client);
+    deposits.register(server, client, "http");
     withdrawals.register(server, client, "http");
     receiveAddresses.register(server, client, "http");
     remittances.register(server, client, "http");
@@ -237,11 +248,11 @@ app.use(helmet());
 // CORS: intentionally not configured. This server is designed for server-to-server MCP
 // communication only (AI agents, Claude Desktop, etc.) — not for browser clients.
 // Helmet already sets X-Content-Type-Options, X-Frame-Options, and related headers.
-// trust proxy: 1 = trust exactly one hop (Railway's reverse proxy).
-// IMPORTANT: if a second proxy is added in front (e.g. Cloudflare), increment this value to 2.
-// With an incorrect count, clients can spoof X-Forwarded-For and bypass the IP-based rate limiter.
+// trust proxy: configured via TRUST_PROXY_HOPS env var (default: 1 = Railway's single hop).
+// Increment by 1 for each additional reverse-proxy layer (e.g. set to 2 when Cloudflare + Railway).
+// Wrong value allows clients to spoof X-Forwarded-For and bypass IP-based rate limiting.
 // Affects: req.ip and express-rate-limit client IP detection.
-app.set("trust proxy", 1);
+app.set("trust proxy", TRUST_PROXY_HOPS);
 app.use(express.json({ limit: "10kb" }));
 
 const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
@@ -258,6 +269,14 @@ if (authEnabled && !MCP_AUTH_TOKEN) {
 if (MCP_AUTH_TOKEN && MCP_AUTH_TOKEN.length < 32) {
   console.error(
     "[buda-mcp] FATAL: MCP_AUTH_TOKEN has fewer than 32 characters.\n" +
+    "  Use a long random secret (e.g. openssl rand -hex 32).",
+  );
+  process.exit(1);
+}
+
+if (MCP_AUTH_TOKEN && !isTokenEntropyOk(MCP_AUTH_TOKEN)) {
+  console.error(
+    "[buda-mcp] FATAL: MCP_AUTH_TOKEN has insufficient entropy (fewer than 8 distinct characters).\n" +
     "  Use a long random secret (e.g. openssl rand -hex 32).",
   );
   process.exit(1);

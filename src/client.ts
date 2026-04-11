@@ -54,7 +54,7 @@ export class BudaClient {
   private _nonceCounter = 0;
 
   private nonce(): string {
-    return String(Date.now() * 1000 + (this._nonceCounter++ % 1000));
+    return String(Date.now() * 1000 + this._nonceCounter++);
   }
 
   private sign(method: string, pathWithQuery: string, body: string, nonce: string): string {
@@ -137,14 +137,14 @@ export class BudaClient {
       } catch {
         // ignore parse error, use statusText
       }
-      // Log full upstream detail server-side only — never forward to MCP caller
+      // Log full upstream detail server-side only — never forward path or detail to MCP caller
       process.stderr.write(
         JSON.stringify({ buda_api_error: true, status: response.status, path, detail }) + "\n",
       );
       const clientMsg =
         response.status === 429
-          ? `Rate limit exceeded on ${path}. Retry later.`
-          : `Buda API error ${response.status} on ${path}.`;
+          ? `Rate limit exceeded. Retry later.`
+          : `Buda API error ${response.status}.`;
       throw new BudaApiError(response.status, path, clientMsg);
     }
     return response.json() as Promise<T>;
