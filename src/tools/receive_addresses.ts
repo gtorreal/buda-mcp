@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { BudaClient, BudaApiError } from "../client.js";
+import { BudaApiError, BudaClient, formatApiError } from "../client.js";
 import { validateCurrency } from "../validation.js";
 import { logAudit } from "../audit.js";
 import type { ReceiveAddressesResponse, SingleReceiveAddressResponse, ReceiveAddress } from "../types.js";
@@ -113,10 +113,7 @@ export async function handleListReceiveAddresses(
       ],
     };
   } catch (err) {
-    const msg =
-      err instanceof BudaApiError
-        ? { error: err.message, code: err.status }
-        : { error: String(err), code: "UNKNOWN" };
+    const msg = formatApiError(err);
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
       isError: true,
@@ -146,10 +143,7 @@ export async function handleGetReceiveAddress(
       content: [{ type: "text", text: JSON.stringify(normalizeAddress(data.receive_address), null, 2) }],
     };
   } catch (err) {
-    const msg =
-      err instanceof BudaApiError
-        ? { error: err.message, code: err.status }
-        : { error: String(err), code: "UNKNOWN" };
+    const msg = formatApiError(err);
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
       isError: true,
@@ -199,10 +193,7 @@ export async function handleCreateReceiveAddress(
     logAudit({ ts: new Date().toISOString(), tool: "create_receive_address", transport, args_summary: { currency }, success: true });
     return result;
   } catch (err) {
-    const msg =
-      err instanceof BudaApiError
-        ? { error: err.message, code: err.status }
-        : { error: String(err), code: "UNKNOWN" };
+    const msg = formatApiError(err);
     const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
     logAudit({ ts: new Date().toISOString(), tool: "create_receive_address", transport, args_summary: { currency }, success: false, error_code: msg.code });
     return result;

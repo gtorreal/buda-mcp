@@ -4,13 +4,14 @@
  */
 
 import { createHmac } from "crypto";
-import { BudaClient, BudaApiError } from "../src/client.js";
+import { BudaClient, BudaApiError, formatApiError } from "../src/client.js";
 import { MemoryCache } from "../src/cache.js";
 import { validateMarketId, validateCryptoAddress } from "../src/validation.js";
 import { handlePlaceOrder } from "../src/tools/place_order.js";
 import { handleCancelOrder } from "../src/tools/cancel_order.js";
 import { flattenAmount, getLiquidityRating, aggregateTradesToCandles, safeTokenEqual, parseEnvInt } from "../src/utils.js";
 import { logAudit } from "../src/audit.js";
+import { requestContext } from "../src/request-context.js";
 import { handleArbitrageOpportunities } from "../src/tools/arbitrage.js";
 import { handleMarketSummary } from "../src/tools/market_summary.js";
 import { handleSimulateOrder } from "../src/tools/simulate_order.js";
@@ -3663,6 +3664,245 @@ await test("parseEnvInt: value above max → throws", () => {
 await test("parseEnvInt: boundary values are accepted", () => {
   assertEqual(parseEnvInt("1", 3000, 1, 65535, "PORT"), 1, "min boundary should be accepted");
   assertEqual(parseEnvInt("65535", 3000, 1, 65535, "PORT"), 65535, "max boundary should be accepted");
+});
+
+// ----------------------------------------------------------------
+// Security — Retry-After cap (additions to section e logic)
+// ----------------------------------------------------------------
+
+section("Retry-After cap — large values capped at 30 000 ms");
+
+await test("Retry-After: 99999 is capped at 30 000 ms", async () => {
+  const savedFetch = globalThis.fetch;
+  const savedSetTimeout = globalThis.setTimeout;
+  const delays: number[] = [];
+
+  globalThis.setTimeout = ((fn: () => void, ms: number) => {
+    delays.push(ms);
+    return savedSetTimeout(fn, 0); // execute immediately in tests
+  }) as typeof setTimeout;
+
+  let callCount = 0;
+  globalThis.fetch = async (): Promise<Response> => {
+    callCount++;
+    if (callCount === 1) {
+      return new Response("{}", { status: 429, headers: { "Retry-After": "99999" } });
+    }
+    return new Response(JSON.stringify({ markets: [] }), { status: 200 });
+  };
+
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    await client.get("/markets");
+    assertEqual(delays[0], 30_000, "Retry-After: 99999 should be capped at 30 000 ms");
+  } finally {
+    globalThis.fetch = savedFetch;
+    globalThis.setTimeout = savedSetTimeout;
+  }
+});
+
+await test("Retry-After: negative value defaults to 1000 ms", async () => {
+  const savedFetch = globalThis.fetch;
+  const savedSetTimeout = globalThis.setTimeout;
+  const delays: number[] = [];
+
+  globalThis.setTimeout = ((fn: () => void, ms: number) => {
+    delays.push(ms);
+    return savedSetTimeout(fn, 0);
+  }) as typeof setTimeout;
+
+  let callCount = 0;
+  globalThis.fetch = async (): Promise<Response> => {
+    callCount++;
+    if (callCount === 1) {
+      return new Response("{}", { status: 429, headers: { "Retry-After": "-1" } });
+    }
+    return new Response(JSON.stringify({ markets: [] }), { status: 200 });
+  };
+
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    await client.get("/markets");
+    assertEqual(delays[0], 1_000, "negative Retry-After should default to 1000 ms");
+  } finally {
+    globalThis.fetch = savedFetch;
+    globalThis.setTimeout = savedSetTimeout;
+  }
+});
+
+await test("Retry-After: exactly 30 s is not capped (boundary)", async () => {
+  const savedFetch = globalThis.fetch;
+  const savedSetTimeout = globalThis.setTimeout;
+  const delays: number[] = [];
+
+  globalThis.setTimeout = ((fn: () => void, ms: number) => {
+    delays.push(ms);
+    return savedSetTimeout(fn, 0);
+  }) as typeof setTimeout;
+
+  let callCount = 0;
+  globalThis.fetch = async (): Promise<Response> => {
+    callCount++;
+    if (callCount === 1) {
+      return new Response("{}", { status: 429, headers: { "Retry-After": "30" } });
+    }
+    return new Response(JSON.stringify({ markets: [] }), { status: 200 });
+  };
+
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    await client.get("/markets");
+    assertEqual(delays[0], 30_000, "exactly 30 s should equal 30 000 ms (boundary accepted)");
+  } finally {
+    globalThis.fetch = savedFetch;
+    globalThis.setTimeout = savedSetTimeout;
+  }
+});
+
+// ----------------------------------------------------------------
+// Security — formatApiError (error sanitization)
+// ----------------------------------------------------------------
+
+section("formatApiError — error sanitization");
+
+await test("BudaApiError returns its message and HTTP status code", () => {
+  const err = new BudaApiError(404, "/markets/bad", "Market not found");
+  const result = formatApiError(err);
+  assertEqual(result.error, "Market not found", "error message should match BudaApiError message");
+  assertEqual(result.code as number, 404, "code should match BudaApiError status");
+});
+
+await test("BudaApiError with 429 preserves status", () => {
+  const err = new BudaApiError(429, "/orders", "Rate limit exceeded on /orders. Retry later.", 5_000);
+  const result = formatApiError(err);
+  assertEqual(result.code as number, 429, "429 status should be forwarded");
+});
+
+await test("unknown Error returns generic message — internal details not exposed", () => {
+  const err = new Error("ECONNREFUSED 127.0.0.1:9999 — internal connection failure with secret path /private/keys");
+  const result = formatApiError(err);
+  assert(result.code === "INTERNAL_ERROR", "code should be INTERNAL_ERROR for unknown errors");
+  assert(
+    !result.error.includes("ECONNREFUSED") && !result.error.includes("/private/keys"),
+    "internal details must not appear in the returned error message",
+  );
+});
+
+await test("non-Error thrown value returns generic message", () => {
+  const result = formatApiError("something went wrong with path=/etc/secrets");
+  assert(result.code === "INTERNAL_ERROR", "code should be INTERNAL_ERROR for non-Error values");
+  assert(
+    !result.error.includes("/etc/secrets"),
+    "internal details must not appear in the returned error message for string throws",
+  );
+});
+
+await test("unknown error logs internal detail to stderr, not to caller", () => {
+  const captured: string[] = [];
+  const savedWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (msg: Parameters<typeof process.stderr.write>[0]) => {
+    captured.push(typeof msg === "string" ? msg : msg.toString());
+    return true;
+  };
+
+  try {
+    const sensitiveMessage = "TypeError: ENOENT /app/dist/secret-config.json";
+    formatApiError(new Error(sensitiveMessage));
+
+    assert(captured.length > 0, "something should be written to stderr");
+    const loggedText = captured.join("");
+    assert(loggedText.includes(sensitiveMessage), "internal detail must appear in stderr log");
+  } finally {
+    process.stderr.write = savedWrite;
+  }
+});
+
+// ----------------------------------------------------------------
+// Security — IP propagation in audit logs (AsyncLocalStorage)
+// ----------------------------------------------------------------
+
+section("IP propagation in audit logs — AsyncLocalStorage");
+
+await test("logAudit includes ip from requestContext when running inside requestContext.run()", async () => {
+  const captured: string[] = [];
+  const savedWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (msg: Parameters<typeof process.stderr.write>[0]) => {
+    captured.push(typeof msg === "string" ? msg : msg.toString());
+    return true;
+  };
+
+  try {
+    await requestContext.run({ ip: "1.2.3.4" }, async () => {
+      logAudit({
+        ts: new Date().toISOString(),
+        tool: "test_tool",
+        transport: "http",
+        args_summary: {},
+        success: true,
+      });
+    });
+
+    assert(captured.length > 0, "logAudit should write to stderr");
+    const parsed = JSON.parse(captured[captured.length - 1]) as { ip?: string; audit: boolean };
+    assert(parsed.audit === true, "output should be an audit event");
+    assertEqual(parsed.ip, "1.2.3.4", "ip should be populated from requestContext");
+  } finally {
+    process.stderr.write = savedWrite;
+  }
+});
+
+await test("logAudit omits ip when called outside any requestContext.run()", async () => {
+  const captured: string[] = [];
+  const savedWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (msg: Parameters<typeof process.stderr.write>[0]) => {
+    captured.push(typeof msg === "string" ? msg : msg.toString());
+    return true;
+  };
+
+  try {
+    // Called directly — no requestContext.run() wrapper
+    logAudit({
+      ts: new Date().toISOString(),
+      tool: "stdio_tool",
+      transport: "stdio",
+      args_summary: {},
+      success: true,
+    });
+
+    assert(captured.length > 0, "logAudit should write to stderr");
+    const parsed = JSON.parse(captured[captured.length - 1]) as { ip?: string };
+    assert(parsed.ip === undefined, "ip should be absent when there is no requestContext");
+  } finally {
+    process.stderr.write = savedWrite;
+  }
+});
+
+await test("logAudit with different IPs in nested requestContext.run() calls uses innermost ip", async () => {
+  const captured: string[] = [];
+  const savedWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = (msg: Parameters<typeof process.stderr.write>[0]) => {
+    captured.push(typeof msg === "string" ? msg : msg.toString());
+    return true;
+  };
+
+  try {
+    await requestContext.run({ ip: "10.0.0.1" }, async () => {
+      await requestContext.run({ ip: "192.168.1.1" }, async () => {
+        logAudit({
+          ts: new Date().toISOString(),
+          tool: "nested_tool",
+          transport: "http",
+          args_summary: {},
+          success: true,
+        });
+      });
+    });
+
+    const parsed = JSON.parse(captured[captured.length - 1]) as { ip?: string };
+    assertEqual(parsed.ip, "192.168.1.1", "innermost context ip should win");
+  } finally {
+    process.stderr.write = savedWrite;
+  }
 });
 
 // ----------------------------------------------------------------

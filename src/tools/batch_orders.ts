@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { BudaClient, BudaApiError } from "../client.js";
+import { BudaApiError, BudaClient, formatApiError } from "../client.js";
 import { validateMarketId } from "../validation.js";
 import { logAudit } from "../audit.js";
 import type { OrderResponse } from "../types.js";
@@ -176,10 +176,7 @@ export async function handlePlaceBatchOrders(
       );
       results.push({ index: i, market_id: order.market_id, success: true, order: data.order });
     } catch (err) {
-      const errInfo =
-        err instanceof BudaApiError
-          ? { error: err.message, code: err.status as number | string }
-          : { error: String(err), code: "UNKNOWN" as const };
+      const errInfo = formatApiError(err);
       results.push({
         index: i,
         market_id: order.market_id,

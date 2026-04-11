@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { BudaClient, BudaApiError } from "../client.js";
+import { BudaApiError, BudaClient, formatApiError } from "../client.js";
 import { validateCurrency } from "../validation.js";
 import { flattenAmount } from "../utils.js";
 import type { DepositsResponse, SingleDepositResponse, Deposit } from "../types.js";
@@ -102,10 +102,7 @@ export async function handleGetDepositHistory(
       ],
     };
   } catch (err) {
-    const msg =
-      err instanceof BudaApiError
-        ? { error: err.message, code: err.status }
-        : { error: String(err), code: "UNKNOWN" };
+    const msg = formatApiError(err);
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
       isError: true,
@@ -187,10 +184,7 @@ export async function handleCreateFiatDeposit(
       content: [{ type: "text", text: JSON.stringify(normalizeDeposit(data.deposit), null, 2) }],
     };
   } catch (err) {
-    const msg =
-      err instanceof BudaApiError
-        ? { error: err.message, code: err.status }
-        : { error: String(err), code: "UNKNOWN" };
+    const msg = formatApiError(err);
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
       isError: true,

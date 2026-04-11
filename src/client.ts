@@ -15,7 +15,24 @@ export class BudaApiError extends Error {
   }
 }
 
+/**
+ * Formats a caught error into a safe { error, code } object for MCP callers.
+ * For BudaApiError the original message and status are forwarded.
+ * For any other error the internal details are logged to stderr only and a
+ * generic message is returned — preventing leakage of file paths, stack
+ * traces, or connection details to callers.
+ */
+export function formatApiError(err: unknown): { error: string; code: string | number } {
+  if (err instanceof BudaApiError) {
+    return { error: err.message, code: err.status };
+  }
+  process.stderr.write(JSON.stringify({ internal_error: true, message: String(err) }) + "\n");
+  return { error: "An unexpected error occurred. Check server logs.", code: "INTERNAL_ERROR" };
+}
+
 export class BudaClient {
+  private static readonly MAX_RETRY_DELAY_MS = 30_000;
+
   private readonly baseUrl: string;
   private readonly apiKey: string | undefined;
   private readonly apiSecret: string | undefined;
@@ -67,9 +84,10 @@ export class BudaClient {
    */
   private parseRetryAfterMs(headers: Headers): number {
     const raw = headers.get("Retry-After");
-    if (!raw) return 1000;
+    if (!raw) return 1_000;
     const secs = parseInt(raw, 10);
-    return isNaN(secs) ? 1000 : secs * 1000;
+    if (isNaN(secs) || secs < 0) return 1_000;
+    return Math.min(secs * 1_000, BudaClient.MAX_RETRY_DELAY_MS);
   }
 
   /**

@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { BudaClient, BudaApiError } from "../client.js";
+import { BudaApiError, BudaClient, formatApiError } from "../client.js";
 import { flattenAmount } from "../utils.js";
 import { validateCurrency } from "../validation.js";
 import { logAudit } from "../audit.js";
@@ -151,10 +151,7 @@ export async function handleListRemittances(
       ],
     };
   } catch (err) {
-    const msg =
-      err instanceof BudaApiError
-        ? { error: err.message, code: err.status }
-        : { error: String(err), code: "UNKNOWN" };
+    const msg = formatApiError(err);
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
       isError: true,
@@ -172,10 +169,7 @@ export async function handleGetRemittance(
       content: [{ type: "text", text: JSON.stringify(normalizeRemittance(data.remittance), null, 2) }],
     };
   } catch (err) {
-    const msg =
-      err instanceof BudaApiError
-        ? { error: err.message, code: err.status }
-        : { error: String(err), code: "UNKNOWN" };
+    const msg = formatApiError(err);
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
       isError: true,
@@ -228,10 +222,7 @@ export async function handleQuoteRemittance(
     logAudit({ ts: new Date().toISOString(), tool: "quote_remittance", transport, args_summary: { currency, amount, recipient_id }, success: true });
     return result;
   } catch (err) {
-    const msg =
-      err instanceof BudaApiError
-        ? { error: err.message, code: err.status }
-        : { error: String(err), code: "UNKNOWN" };
+    const msg = formatApiError(err);
     const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
     logAudit({ ts: new Date().toISOString(), tool: "quote_remittance", transport, args_summary: { currency, amount, recipient_id }, success: false, error_code: msg.code });
     return result;
@@ -270,10 +261,7 @@ export async function handleAcceptRemittanceQuote(
     logAudit({ ts: new Date().toISOString(), tool: "accept_remittance_quote", transport, args_summary: { remittance_id: id }, success: true });
     return result;
   } catch (err) {
-    const msg =
-      err instanceof BudaApiError
-        ? { error: err.message, code: err.status }
-        : { error: String(err), code: "UNKNOWN" };
+    const msg = formatApiError(err);
     const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
     logAudit({ ts: new Date().toISOString(), tool: "accept_remittance_quote", transport, args_summary: { remittance_id: id }, success: false, error_code: msg.code });
     return result;

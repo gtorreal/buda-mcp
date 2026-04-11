@@ -6,6 +6,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { BudaClient } from "./client.js";
 import { MemoryCache, CACHE_TTL } from "./cache.js";
 import { safeTokenEqual, parseEnvInt } from "./utils.js";
+import { requestContext } from "./request-context.js";
 import { VERSION } from "./version.js";
 import { validateMarketId } from "./validation.js";
 import type { MarketsResponse, TickerResponse } from "./types.js";
@@ -255,9 +256,11 @@ if (authEnabled && !MCP_AUTH_TOKEN) {
 }
 
 if (MCP_AUTH_TOKEN && MCP_AUTH_TOKEN.length < 32) {
-  console.warn(
-    "[buda-mcp] WARNING: MCP_AUTH_TOKEN has fewer than 32 characters. Use a longer random secret.",
+  console.error(
+    "[buda-mcp] FATAL: MCP_AUTH_TOKEN has fewer than 32 characters.\n" +
+    "  Use a long random secret (e.g. openssl rand -hex 32).",
   );
+  process.exit(1);
 }
 
 let rateLimitMax: number;
@@ -304,7 +307,7 @@ function mcpAuthMiddleware(
 // Health check for Railway / uptime monitors.
 // version is intentionally omitted to avoid fingerprinting by unauthenticated callers.
 app.get("/health", staticRateLimiter, (_req, res) => {
-  res.json({ status: "ok", server: "buda-mcp" });
+  res.json({ status: "ok" });
 });
 
 // Smithery static server card — assembled programmatically from tool definitions.
@@ -327,32 +330,36 @@ app.get("/.well-known/mcp/server-card.json", staticRateLimiter, mcpAuthMiddlewar
 
 // Stateless StreamableHTTP — new server instance per request (no session state needed)
 app.post("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (req, res) => {
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-  });
+  await requestContext.run({ ip: req.ip }, async () => {
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+    });
 
-  res.on("close", () => {
-    transport.close();
-  });
+    res.on("close", () => {
+      transport.close();
+    });
 
-  const server = createServer();
-  await server.connect(transport);
-  await transport.handleRequest(req, res, req.body);
+    const server = createServer();
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  });
 });
 
 // SSE upgrade for clients that prefer streaming
 app.get("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (req, res) => {
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-  });
+  await requestContext.run({ ip: req.ip }, async () => {
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+    });
 
-  res.on("close", () => {
-    transport.close();
-  });
+    res.on("close", () => {
+      transport.close();
+    });
 
-  const server = createServer();
-  await server.connect(transport);
-  await transport.handleRequest(req, res);
+    const server = createServer();
+    await server.connect(transport);
+    await transport.handleRequest(req, res);
+  });
 });
 
 app.delete("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (_req, res) => {

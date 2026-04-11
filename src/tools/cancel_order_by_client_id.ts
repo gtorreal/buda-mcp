@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { BudaClient, BudaApiError } from "../client.js";
+import { BudaApiError, BudaClient, formatApiError } from "../client.js";
 import { flattenAmount } from "../utils.js";
 import { logAudit } from "../audit.js";
 import type { OrderResponse, Order } from "../types.js";
@@ -102,10 +102,7 @@ export async function handleCancelOrderByClientId(
     logAudit({ ts: new Date().toISOString(), tool: "cancel_order_by_client_id", transport, args_summary: { client_id }, success: true });
     return result;
   } catch (err) {
-    const msg =
-      err instanceof BudaApiError
-        ? { error: err.message, code: err.status }
-        : { error: String(err), code: "UNKNOWN" };
+    const msg = formatApiError(err);
     const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
     logAudit({ ts: new Date().toISOString(), tool: "cancel_order_by_client_id", transport, args_summary: { client_id }, success: false, error_code: msg.code });
     return result;

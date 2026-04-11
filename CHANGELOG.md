@@ -11,6 +11,26 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.5.6] – 2026-04-11
+
+### Security
+
+- **`Retry-After` delay capped at 30 s** — `BudaClient.parseRetryAfterMs` now applies `Math.min(secs * 1_000, 30_000)` before scheduling the 429-retry wait. Previously there was no upper bound: a response with `Retry-After: 99999` would make the client wait ~27 hours inside `fetchWithRetry`, effectively creating an unbounded denial-of-service for any caller awaiting that request. Negative values are also caught and fall back to 1 s.
+
+- **`String(err)` leakage eliminated from all tool handlers** — a new `formatApiError(err)` helper (exported from `src/client.ts`) replaces 33 inline ternaries that previously forwarded raw `String(err)` to MCP callers. For unknown errors the internal detail (which may contain file paths, connection strings, or stack traces) is now written only to `stderr`; callers receive the generic message `"An unexpected error occurred. Check server logs."` with code `INTERNAL_ERROR`.
+
+- **Caller IP now propagated into HTTP audit events** — `src/request-context.ts` introduces an `AsyncLocalStorage<{ ip? }>` store. The three `/mcp` Express handlers wrap their execution in `requestContext.run({ ip: req.ip }, ...)`, and `logAudit` reads the store automatically. All destructive-action audit entries now include the caller's IP for HTTP requests with no changes to individual tool handlers.
+
+- **`MCP_AUTH_TOKEN` minimum length enforced at startup** — tokens shorter than 32 characters now cause `process.exit(1)` instead of a `console.warn`. This matches the existing fatal-error pattern for missing tokens and `PORT`/`MCP_RATE_LIMIT` out-of-range values.
+
+- **`server` field removed from `/health` response** — the unauthenticated health endpoint previously included `server: "buda-mcp"`, enabling passive fingerprinting of the software. It now returns only `{ status: "ok" }`.
+
+### Tests
+
+- 11 new unit tests across 3 new sections: `Retry-After cap`, `formatApiError — error sanitization`, and `IP propagation in audit logs`. Total: 195 unit tests.
+
+---
+
 ## [1.5.5] – 2026-04-11
 
 ### Security
