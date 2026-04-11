@@ -11,6 +11,20 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **TLS startup warning for self-hosted HTTP deployments** — when `BUDA_API_KEY`/`BUDA_API_SECRET` are configured and `TRUST_PROXY_HOPS=0` (no proxy declared), the HTTP server now emits a startup warning that running over plain HTTP exposes credentials to network interception. Suppressible with `SKIP_TLS_CHECK=true` for localhost development. Railway deployments (`TRUST_PROXY_HOPS=1`) are unaffected.
+
+### Operations
+
+- **Continuous CI workflow** — `.github/workflows/ci.yml` runs `npm audit --audit-level=high`, build, and the full test suite on every push and pull request to `main`. Previously CI only ran on releases, so dependency vulnerabilities and regressions could go undetected between releases.
+
+- **Dependabot enabled** — `.github/dependabot.yml` opens weekly pull requests for npm dependency updates (grouped into one PR) and GitHub Actions action hash updates. Covers the supply chain risk of the four runtime dependencies going stale.
+
+- **Security disclosure policy** — `SECURITY.md` documents the private advisory channel (GitHub Security Advisories), a 48-hour acknowledgement SLA, coordinated disclosure commitment, and an explicit in/out-of-scope list. Prompt injection via API response content and the `confirmation_token` UX guard are explicitly listed as out of scope with rationale.
+
+- **README Security section** — new section before the HTTP deployment docs explaining the stdio-first model, TLS requirement for HTTP self-hosting, the scope of `confirmation_token`, and a link to `SECURITY.md` for vulnerability reports.
+
+### Security
+
 - **BOLT-11 regex is now strictly lowercase** — the `i` (case-insensitive) flag was removed from the validation regex in `lightning_withdrawal`. Bech32 encoding is strictly lowercase; the flag was silently accepting uppercase invoice strings that the exchange would reject, giving false format-check confidence.
 
 - **`isTokenEntropyOk` now uses Shannon entropy** — the bearer-token entropy check previously required only ≥ 8 distinct characters (`new Set(token).size >= 8`). Repeating patterns with exactly 8 distinct chars (e.g. `abcdefgh` × 4, log₂(8) = 3.0 bits/char) or UUID-style strings (~3.4 bits/char) passed despite being weak secrets. The check now computes Shannon entropy and requires ≥ 3.5 bits/char. Any `openssl rand -hex 32` output (~4.0 bits/char) comfortably passes; the startup error message is updated accordingly.
