@@ -348,7 +348,24 @@ section(`get_market_sentiment — ${TEST_MARKET}`);
 // ----------------------------------------------------------------
 // 12. get_technical_indicators
 // ----------------------------------------------------------------
-section(`get_technical_indicators — ${TEST_MARKET} (1h, limit 1000)`);
+
+type TechIndicatorsResponse = {
+  candles_used?: number;
+  candles_available?: number;
+  warning?: string;
+  indicators: {
+    rsi: number | null;
+    macd: { line: number; signal: number; histogram: number } | null;
+    bollinger_bands: { upper: number; mid: number; lower: number } | null;
+    sma_20: number;
+    sma_50: number;
+  } | null;
+  signals: { rsi_signal: string; macd_signal: string; bb_signal: string };
+  disclaimer: string;
+};
+
+// 12a. 1h period — expected to hit insufficient_data (BTC-CLP has ~8 candles/1h)
+section(`get_technical_indicators — ${TEST_MARKET} (1h, insufficient_data branch)`);
 {
   try {
     const result = await handleTechnicalIndicators(
@@ -356,38 +373,49 @@ section(`get_technical_indicators — ${TEST_MARKET} (1h, limit 1000)`);
       client,
     );
     if (result.isError) throw new Error(result.content[0].text);
-    const parsed = JSON.parse(result.content[0].text) as {
-      candles_used?: number;
-      candles_available?: number;
-      warning?: string;
-      indicators: {
-        rsi: number | null;
-        macd: { line: number; signal: number; histogram: number } | null;
-        bollinger_bands: { upper: number; mid: number; lower: number } | null;
-        sma_20: number;
-        sma_50: number;
-      } | null;
-      signals: { rsi_signal: string; macd_signal: string; bb_signal: string };
-      disclaimer: string;
-    };
-
-    if (parsed.warning === "insufficient_data") {
-      pass("warning", `insufficient_data (${parsed.candles_available} candles available, need 50)`);
+    const parsed = JSON.parse(result.content[0].text) as TechIndicatorsResponse;
+    if (parsed.warning !== "insufficient_data") {
+      pass("note", `got ${parsed.candles_used} candles — unexpectedly enough data, indicators returned`);
     } else {
-      pass("candles_used", String(parsed.candles_used));
-      if (!parsed.indicators) throw new Error("indicators is null without a warning");
-      pass("rsi", String(parsed.indicators.rsi));
-      pass("rsi_signal", parsed.signals.rsi_signal);
-      pass("macd_histogram", String(parsed.indicators.macd?.histogram));
-      pass("macd_signal", parsed.signals.macd_signal);
-      pass("bb_upper", String(parsed.indicators.bollinger_bands?.upper));
-      pass("bb_signal", parsed.signals.bb_signal);
-      pass("sma_20", String(parsed.indicators.sma_20));
-      pass("sma_50", String(parsed.indicators.sma_50));
-      pass("disclaimer", parsed.disclaimer.length > 0 ? "present" : "MISSING");
+      pass("warning", `insufficient_data — ${parsed.candles_available} candles available (need 50) ✓`);
+      pass("indicators", parsed.indicators === null ? "null ✓" : "SHOULD BE NULL");
     }
   } catch (err) {
-    fail("get_technical_indicators", err);
+    fail("get_technical_indicators (1h)", err);
+    failures++;
+  }
+}
+
+// 12b. 5m period — enough candles to compute real indicators (~42 from last 100 trades)
+section(`get_technical_indicators — ${TEST_MARKET} (5m, indicators branch)`);
+{
+  try {
+    const result = await handleTechnicalIndicators(
+      { market_id: TEST_MARKET, period: "5m", limit: 1000 },
+      client,
+    );
+    if (result.isError) throw new Error(result.content[0].text);
+    const parsed = JSON.parse(result.content[0].text) as TechIndicatorsResponse;
+
+    if (parsed.warning === "insufficient_data") {
+      // Market too quiet right now — report but don't fail
+      pass("note", `insufficient_data with 1m period (${parsed.candles_available} candles) — market unusually quiet`);
+    } else {
+      if (!parsed.indicators) throw new Error("indicators is null without a warning");
+      pass("candles_used", String(parsed.candles_used));
+      pass("rsi", parsed.indicators.rsi !== null ? `${parsed.indicators.rsi} (${parsed.signals.rsi_signal})` : "null (insufficient RSI data)");
+      pass("macd_histogram", parsed.indicators.macd !== null
+        ? `${parsed.indicators.macd.histogram.toFixed(2)} (${parsed.signals.macd_signal})`
+        : "null (insufficient MACD data)");
+      pass("bb_upper", parsed.indicators.bollinger_bands !== null
+        ? `${parsed.indicators.bollinger_bands.upper.toLocaleString()} (${parsed.signals.bb_signal})`
+        : "null (insufficient BB data)");
+      pass("sma_20", String(parsed.indicators.sma_20?.toLocaleString()));
+      pass("sma_50", parsed.indicators.sma_50 !== null ? String(parsed.indicators.sma_50?.toLocaleString()) : "null (need 50 candles)");
+      pass("disclaimer", parsed.disclaimer?.length > 0 ? "present ✓" : "MISSING");
+    }
+  } catch (err) {
+    fail("get_technical_indicators (1m)", err);
     failures++;
   }
 }

@@ -1024,7 +1024,7 @@ await test("technical indicators: insufficient candles returns warning", async (
     };
     assertEqual(parsed.warning, "insufficient_data", "should return insufficient_data warning");
     assertEqual(parsed.indicators, null, "indicators should be null");
-    assertEqual(parsed.minimum_required, 50, "minimum_required should be 50");
+    assertEqual(parsed.minimum_required, 20, "minimum_required should be 20");
   } finally {
     globalThis.fetch = savedFetch;
   }

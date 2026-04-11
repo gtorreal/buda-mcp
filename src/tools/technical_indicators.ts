@@ -10,9 +10,10 @@ export const toolSchema = {
   description:
     "Computes RSI (14), MACD (12/26/9), Bollinger Bands (20, 2σ), SMA 20, and SMA 50 " +
     "from Buda trade history — no external data or libraries. " +
+    "Supports periods: 5m, 15m, 30m, 1h, 4h, 1d. Use shorter periods (5m/15m) for intraday analysis. " +
     "Uses at least 500 trades for reliable results (set limit=1000 for maximum depth). " +
     "Returns latest indicator values and signal interpretations (overbought/oversold, crossover, band position). " +
-    "If fewer than 50 candles are available after aggregation, returns a structured warning instead. " +
+    "If fewer than 20 candles are available after aggregation, returns a structured warning instead. " +
     "Example: 'Is BTC-CLP RSI overbought on the 4-hour chart?'",
   inputSchema: {
     type: "object" as const,
@@ -23,7 +24,7 @@ export const toolSchema = {
       },
       period: {
         type: "string",
-        description: "Candle period: '1h', '4h', or '1d'. Default: '1h'.",
+        description: "Candle period: '5m', '15m', '30m', '1h', '4h', or '1d'. Default: '1h'.",
       },
       limit: {
         type: "number",
@@ -134,11 +135,11 @@ function bollingerBands(closes: number[], period: number = 20, stdMult: number =
 
 // ---- Tool handler ----
 
-const MIN_CANDLES = 50;
+const MIN_CANDLES = 20;
 
 type TechnicalIndicatorsArgs = {
   market_id: string;
-  period: "1h" | "4h" | "1d";
+  period: "5m" | "15m" | "30m" | "1h" | "4h" | "1d";
   limit?: number;
 };
 
@@ -263,9 +264,9 @@ export function register(server: McpServer, client: BudaClient): void {
         .string()
         .describe("Market ID (e.g. 'BTC-CLP', 'ETH-BTC')."),
       period: z
-        .enum(["1h", "4h", "1d"])
+        .enum(["5m", "15m", "30m", "1h", "4h", "1d"])
         .default("1h")
-        .describe("Candle period: '1h', '4h', or '1d'. Default: '1h'."),
+        .describe("Candle period: '5m', '15m', '30m', '1h', '4h', or '1d'. Default: '1h'."),
       limit: z
         .number()
         .int()

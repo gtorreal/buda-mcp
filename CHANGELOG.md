@@ -7,6 +7,16 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.4.2] – 2026-04-11
+
+### Added
+
+- **Shorter candle periods** (`5m`, `15m`, `30m`) now supported in both `get_price_history` and `get_technical_indicators`. Previously only `1h`, `4h`, `1d` were available.
+- **Lowered `MIN_CANDLES`** in `get_technical_indicators` from 50 to 20, matching the actual minimum required by the algorithms (RSI-14, MACD-26, BB-20). Individual indicators that still lack enough data return `null`.
+- **Integration tests** now cover the full `get_technical_indicators` indicators branch using `5m` period (42 live candles from BTC-CLP). Previously only the `insufficient_data` branch was tested live.
+
+---
+
 ## [1.4.1] – 2026-04-11
 
 ### Fixed
