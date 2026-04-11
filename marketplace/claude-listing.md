@@ -12,9 +12,9 @@
 
 Real-time market data from [Buda.com](https://www.buda.com/), the leading cryptocurrency exchange operating in Chile, Colombia, and Peru. All public data is sourced from Buda's public REST API v2 — no API key required.
 
-Use this server to query live prices, spreads, order books, OHLCV candles, trade history, volume, and cross-market arbitrage opportunities for all BTC, ETH, and altcoin markets quoted in CLP, COP, PEN, and USDC. Optional API credentials unlock account tools for balances and order management.
+Use this server to query live prices, spreads, order books, OHLCV candles, trade history, volume, and cross-market arbitrage opportunities for all BTC, ETH, and altcoin markets quoted in CLP, COP, PEN, and USDC. Optional API credentials unlock account tools for balances, order management, withdrawals, deposits, and Lightning Network payments.
 
-**v1.4.0** adds 5 new tools: `simulate_order`, `calculate_position_size`, `get_market_sentiment`, `get_technical_indicators`, and a dead man's switch (`schedule_cancel_all` + `renew_cancel_timer` + `disarm_cancel_timer`). All response schemas are flat and fully typed.
+**v1.5.0** adds 8 new authenticated tools: `cancel_all_orders`, `cancel_order_by_client_id`, `place_batch_orders`, extended `place_order` (TIF + stop), `create_withdrawal`, `create_fiat_deposit`, `lightning_withdrawal`, and `create_lightning_invoice`. All response schemas are flat and fully typed.
 
 ---
 
@@ -96,6 +96,34 @@ Place a limit or market order. Requires `confirmation_token="CONFIRM"` to preven
 ### `cancel_order`
 Cancel an open order by ID. Requires `confirmation_token="CONFIRM"`.  
 **Parameters:** `order_id`, `confirmation_token`.
+
+### `cancel_all_orders`
+Cancel all open orders in a specific market or across all markets (`market_id="*"`). Requires `confirmation_token="CONFIRM"`. Market validation fires before any API call.  
+**Parameters:** `market_id` (or `"*"` for all), `confirmation_token`.
+
+### `cancel_order_by_client_id`
+Cancel an open order by its client-assigned string ID. Requires `confirmation_token="CONFIRM"`. Returns the same flat order shape as `get_order`.  
+**Parameters:** `client_id`, `confirmation_token`.
+
+### `place_batch_orders`
+Place up to 20 orders sequentially. All orders are pre-validated before any API call. Partial failures do not roll back placed orders; a `warning` field surfaces this. Returns `{ results, total, succeeded, failed }`.  
+**Parameters:** `orders` (array of 1–20 order objects), `confirmation_token`.
+
+### `create_withdrawal`
+Create a crypto or fiat withdrawal. Exactly one of `address` (crypto) or `bank_account_id` (fiat) must be provided. Requires `confirmation_token="CONFIRM"`.  
+**Parameters:** `currency`, `amount`, `address` *(crypto)*, `network` *(optional)*, `bank_account_id` *(fiat)*, `confirmation_token`.
+
+### `create_fiat_deposit`
+Record a fiat deposit. Guard is critical — calling twice creates duplicates. Requires `confirmation_token="CONFIRM"`.  
+**Parameters:** `currency`, `amount`, `bank` *(optional)*, `confirmation_token`.
+
+### `lightning_withdrawal`
+Pay a BOLT-11 Lightning invoice from the LN-BTC reserve. Requires `confirmation_token="CONFIRM"`. Returns `{ id, state, amount, fee, payment_hash, created_at }`.  
+**Parameters:** `invoice`, `confirmation_token`.
+
+### `create_lightning_invoice`
+Create a Lightning receive invoice. No confirmation required. Returns `{ id, payment_request, amount_satoshis, description, expires_at, state, created_at }`.  
+**Parameters:** `amount_satoshis`, `description` *(optional, max 140 chars)*, `expiry_seconds` *(optional, 60–86400)*.
 
 ### `schedule_cancel_all`
 **WARNING: timer state is lost on server restart. Use only on locally-run instances.**  

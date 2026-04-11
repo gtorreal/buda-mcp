@@ -35,6 +35,10 @@ import * as receiveAddresses from "./tools/receive_addresses.js";
 import * as remittances from "./tools/remittances.js";
 import * as remittanceRecipients from "./tools/remittance_recipients.js";
 import * as quotation from "./tools/quotation.js";
+import * as cancelAllOrders from "./tools/cancel_all_orders.js";
+import * as cancelOrderByClientId from "./tools/cancel_order_by_client_id.js";
+import * as batchOrders from "./tools/batch_orders.js";
+import * as lightning from "./tools/lightning.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
@@ -92,6 +96,13 @@ const AUTH_TOOL_SCHEMAS = [
   remittanceRecipients.listToolSchema,
   remittanceRecipients.getToolSchema,
   receiveAddresses.createReceiveAddressToolSchema,
+  cancelAllOrders.toolSchema,
+  cancelOrderByClientId.toolSchema,
+  batchOrders.toolSchema,
+  withdrawals.createWithdrawalToolSchema,
+  deposits.createFiatDepositToolSchema,
+  lightning.lightningWithdrawalToolSchema,
+  lightning.createLightningInvoiceToolSchema,
 ];
 
 function createServer(): McpServer {
@@ -132,6 +143,10 @@ function createServer(): McpServer {
     receiveAddresses.register(server, client);
     remittances.register(server, client);
     remittanceRecipients.register(server, client);
+    cancelAllOrders.register(server, client);
+    cancelOrderByClientId.register(server, client);
+    batchOrders.register(server, client);
+    lightning.register(server, client);
   }
 
   // MCP Resources

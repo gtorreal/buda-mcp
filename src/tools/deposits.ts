@@ -3,7 +3,7 @@ import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { validateCurrency } from "../validation.js";
 import { flattenAmount } from "../utils.js";
-import type { DepositsResponse, Deposit } from "../types.js";
+import type { DepositsResponse, SingleDepositResponse, Deposit } from "../types.js";
 
 export const getDepositHistoryToolSchema = {
   name: "get_deposit_history",
@@ -113,6 +113,91 @@ export async function handleGetDepositHistory(
   }
 }
 
+export const createFiatDepositToolSchema = {
+  name: "create_fiat_deposit",
+  description:
+    "Record a fiat deposit on Buda.com. " +
+    "IMPORTANT: Calling this twice creates duplicate records — the confirmation guard is critical. " +
+    "Pass confirmation_token='CONFIRM' to execute. " +
+    "Requires BUDA_API_KEY and BUDA_API_SECRET.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      currency: { type: "string", description: "Fiat currency code (e.g. 'CLP', 'COP', 'PEN')." },
+      amount: { type: "number", description: "Deposit amount." },
+      bank: { type: "string", description: "Bank name or identifier for the deposit source." },
+      confirmation_token: {
+        type: "string",
+        description: "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute.",
+      },
+    },
+    required: ["currency", "amount", "confirmation_token"],
+  },
+};
+
+type CreateFiatDepositArgs = {
+  currency: string;
+  amount: number;
+  bank?: string;
+  confirmation_token: string;
+};
+
+export async function handleCreateFiatDeposit(
+  args: CreateFiatDepositArgs,
+  client: BudaClient,
+): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
+  const { currency, amount, bank, confirmation_token } = args;
+
+  if (confirmation_token !== "CONFIRM") {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            error:
+              "Deposit not created. confirmation_token must equal 'CONFIRM' to execute. " +
+              "Review the details and set confirmation_token='CONFIRM' to proceed.",
+            code: "CONFIRMATION_REQUIRED",
+            preview: { currency, amount, bank },
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  const validationError = validateCurrency(currency);
+  if (validationError) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({ error: validationError, code: "INVALID_CURRENCY" }) }],
+      isError: true,
+    };
+  }
+
+  try {
+    const payload: Record<string, unknown> = { amount: String(amount) };
+    if (bank) payload.bank = bank;
+
+    const data = await client.post<SingleDepositResponse>(
+      `/currencies/${currency.toUpperCase()}/deposits`,
+      payload,
+    );
+
+    return {
+      content: [{ type: "text", text: JSON.stringify(normalizeDeposit(data.deposit), null, 2) }],
+    };
+  } catch (err) {
+    const msg =
+      err instanceof BudaApiError
+        ? { error: err.message, code: err.status, path: err.path }
+        : { error: String(err), code: "UNKNOWN" };
+    return {
+      content: [{ type: "text", text: JSON.stringify(msg) }],
+      isError: true,
+    };
+  }
+}
+
 export function register(server: McpServer, client: BudaClient): void {
   server.tool(
     getDepositHistoryToolSchema.name,
@@ -127,5 +212,19 @@ export function register(server: McpServer, client: BudaClient): void {
       page: z.number().int().min(1).optional().describe("Page number (default: 1)."),
     },
     (args) => handleGetDepositHistory(args, client),
+  );
+
+  server.tool(
+    createFiatDepositToolSchema.name,
+    createFiatDepositToolSchema.description,
+    {
+      currency: z.string().min(2).max(10).describe("Fiat currency code (e.g. 'CLP', 'COP', 'PEN')."),
+      amount: z.number().positive().describe("Deposit amount."),
+      bank: z.string().optional().describe("Bank name or identifier for the deposit source."),
+      confirmation_token: z
+        .string()
+        .describe("Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."),
+    },
+    (args) => handleCreateFiatDeposit(args, client),
   );
 }

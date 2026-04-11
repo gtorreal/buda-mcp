@@ -7,6 +7,45 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.5.0] – 2026-04-11
+
+### Added
+
+- **`cancel_all_orders`** (`src/tools/cancel_all_orders.ts`) — auth-gated tool to cancel all open orders in a specific market or across all markets (`market_id="*"`). Confirmation guard fires before market validation or API call. Uses new `DELETE /orders` endpoint via `client.delete<T>()`. Exports `handleCancelAllOrders` for unit testing.
+
+- **`cancel_order_by_client_id`** (`src/tools/cancel_order_by_client_id.ts`) — auth-gated tool to cancel an open order by its client-assigned string ID (`PUT /orders/by-client-id/{client_id}`). Confirmation guard first; returns the same flat order shape as `get_order`. Exports `handleCancelOrderByClientId` for unit testing.
+
+- **`place_batch_orders`** (`src/tools/batch_orders.ts`) — auth-gated tool to place up to 20 orders sequentially. Pre-validates **all** orders (market ID format + `limit_price` presence) before any API call — a single validation failure aborts with zero orders placed. API failures mid-batch do not roll back placed orders; a `warning` field surfaces this. Returns `{ results, total, succeeded, failed, warning? }`. Exports `handlePlaceBatchOrders` for unit testing.
+
+- **`place_order` extended (optional TIF + stop fields)** — backward-compatible additions:
+  - **Time-in-force flags**: `ioc` (immediate-or-cancel), `fok` (fill-or-kill), `post_only`, `gtd_timestamp` (ISO 8601 expiry). Mutually exclusive — specifying more than one returns `VALIDATION_ERROR`.
+  - **Stop orders**: `stop_price` + `stop_type` (`">="` or `"<="`) — both must be present together or both absent, otherwise `VALIDATION_ERROR`.
+  - All validation happens after the confirmation guard but before the API call.
+
+- **`create_withdrawal`** (added to `src/tools/withdrawals.ts`) — auth-gated `POST /currencies/{currency}/withdrawals`. Supports crypto (via `address` + optional `network`) and fiat (via `bank_account_id`). Exactly one destination must be provided; both or neither → `VALIDATION_ERROR`. Confirmation guard preview includes `{ currency, amount, destination }`. Returns flat `Withdrawal` shape. Exports `handleCreateWithdrawal` and `createWithdrawalToolSchema`.
+
+- **`create_fiat_deposit`** (added to `src/tools/deposits.ts`) — auth-gated `POST /currencies/{currency}/deposits`. Guard is critical — calling twice creates duplicate records. Validates currency before API call. Returns flat `Deposit` shape. Exports `handleCreateFiatDeposit` and `createFiatDepositToolSchema`.
+
+- **`lightning_withdrawal`** + **`create_lightning_invoice`** (`src/tools/lightning.ts`) — two auth-gated Lightning Network tools:
+  - `lightning_withdrawal` — pays a BOLT-11 invoice from the LN-BTC reserve (`POST /reserves/ln-btc/withdrawals`). Confirmation guard truncates the invoice in the preview (`invoice_preview: first 20 chars + "..."`). Returns `{ id, state, amount, amount_currency, fee, fee_currency, payment_hash, created_at }`.
+  - `create_lightning_invoice` — creates a receive invoice (`POST /lightning_network_invoices`). No confirmation required. Inputs: `amount_satoshis`, optional `description` (max 140 chars), optional `expiry_seconds` (60–86400). Returns `{ id, payment_request, amount_satoshis, description, expires_at, state, created_at }`.
+
+- **`delete<T>()` on `BudaClient`** (`src/client.ts`) — follows the same HMAC auth headers + 429 retry pattern as `put<T>()`. Supports optional query params.
+
+- **New types** in `src/types.ts`: `CancelAllOrdersResponse`, `LightningWithdrawal`, `LightningWithdrawalResponse`, `LightningInvoice`, `LightningInvoiceResponse`.
+
+- **Unit tests (32 new, 138 total)** in `test/unit.ts`:
+  - `cancel_all_orders` (5 tests): no confirmation; `*` + CONFIRM; specific market + CONFIRM; invalid market with CONFIRM; 404 passthrough.
+  - `cancel_order_by_client_id` (3 tests): no confirmation; happy path with flat order; 404 passthrough.
+  - `place_batch_orders` (5 tests): no confirmation; all valid; invalid market pre-validation; missing limit_price pre-validation; mid-batch API error partial success.
+  - `place_order extended` (4 tests): existing limit order unchanged; IOC → `limit.type='ioc'`; stop_price without stop_type; mutually exclusive TIF flags.
+  - `create_withdrawal` (6 tests): no confirmation; both address+bank_account_id; neither; crypto path; fiat path; 422 passthrough.
+  - `create_fiat_deposit` (4 tests): no confirmation; invalid currency; happy path; 422 passthrough.
+  - `lightning_withdrawal` (3 tests): no confirmation with preview; happy path; 422 passthrough.
+  - `create_lightning_invoice` (2 tests): happy path; 422 passthrough.
+
+---
+
 ## [1.4.2] – 2026-04-11
 
 ### Added

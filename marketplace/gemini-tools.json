@@ -1,5 +1,5 @@
 {
-  "_comment": "Gemini function declarations for buda-mcp v1.4.0. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
+  "_comment": "Gemini function declarations for buda-mcp v1.5.0. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
   "functionDeclarations": [
     {
       "name": "get_markets",
@@ -392,6 +392,160 @@
           }
         },
         "required": ["order_id", "confirmation_token"]
+      }
+    },
+    {
+      "name": "cancel_all_orders",
+      "description": "Cancels all open orders on Buda.com, optionally filtered by market. Pass market_id='*' to cancel across all markets. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market ID (e.g. 'BTC-CLP') or '*' to cancel orders across all markets."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
+          }
+        },
+        "required": ["market_id", "confirmation_token"]
+      }
+    },
+    {
+      "name": "cancel_order_by_client_id",
+      "description": "Cancels an open order by its client-assigned string ID on Buda.com. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "client_id": {
+            "type": "STRING",
+            "description": "The client ID string assigned when placing the order."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
+          }
+        },
+        "required": ["client_id", "confirmation_token"]
+      }
+    },
+    {
+      "name": "place_batch_orders",
+      "description": "Places up to 20 orders sequentially on Buda.com. All orders are pre-validated before any API call. Partial failures do not roll back placed orders. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "orders": {
+            "type": "ARRAY",
+            "description": "Array of 1–20 orders to place. Each order: market_id, type (Bid/Ask), price_type (limit/market), amount, optional limit_price."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
+          }
+        },
+        "required": ["orders", "confirmation_token"]
+      }
+    },
+    {
+      "name": "create_withdrawal",
+      "description": "Creates a crypto or fiat withdrawal on Buda.com. Exactly one of address (crypto) or bank_account_id (fiat) must be provided. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Currency code (e.g. 'BTC', 'CLP')."
+          },
+          "amount": {
+            "type": "NUMBER",
+            "description": "Withdrawal amount."
+          },
+          "address": {
+            "type": "STRING",
+            "description": "Destination crypto address. Mutually exclusive with bank_account_id."
+          },
+          "network": {
+            "type": "STRING",
+            "description": "Blockchain network (e.g. 'bitcoin', 'ethereum'). Optional."
+          },
+          "bank_account_id": {
+            "type": "INTEGER",
+            "description": "Fiat bank account ID. Mutually exclusive with address."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
+          }
+        },
+        "required": ["currency", "amount", "confirmation_token"]
+      }
+    },
+    {
+      "name": "create_fiat_deposit",
+      "description": "Records a fiat deposit on Buda.com. IMPORTANT: Calling twice creates duplicate records. Requires confirmation_token='CONFIRM'. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Fiat currency code (e.g. 'CLP', 'COP', 'PEN')."
+          },
+          "amount": {
+            "type": "NUMBER",
+            "description": "Deposit amount."
+          },
+          "bank": {
+            "type": "STRING",
+            "description": "Bank name or identifier for the deposit source. Optional."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
+          }
+        },
+        "required": ["currency", "amount", "confirmation_token"]
+      }
+    },
+    {
+      "name": "lightning_withdrawal",
+      "description": "Pays a Bitcoin Lightning Network BOLT-11 invoice from the Buda.com LN-BTC reserve. Funds leave immediately on success. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "invoice": {
+            "type": "STRING",
+            "description": "BOLT-11 Lightning invoice string (starts with 'lnbc', 'lntb', etc.)."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
+          }
+        },
+        "required": ["invoice", "confirmation_token"]
+      }
+    },
+    {
+      "name": "create_lightning_invoice",
+      "description": "Creates a Bitcoin Lightning Network receive invoice on Buda.com. No confirmation required — no funds leave the account. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "amount_satoshis": {
+            "type": "INTEGER",
+            "description": "Invoice amount in satoshis (positive integer)."
+          },
+          "description": {
+            "type": "STRING",
+            "description": "Optional payment description (max 140 characters)."
+          },
+          "expiry_seconds": {
+            "type": "INTEGER",
+            "description": "Invoice expiry in seconds (60–86400). Default: 3600."
+          }
+        },
+        "required": ["amount_satoshis"]
       }
     }
   ]

@@ -8,6 +8,7 @@ export const toolSchema = {
   name: "place_order",
   description:
     "Place a limit or market order on Buda.com. " +
+    "Supports optional time-in-force flags (ioc, fok, post_only, gtd_timestamp) and stop orders. " +
     "IMPORTANT: To prevent accidental execution from ambiguous prompts, you must pass " +
     "confirmation_token='CONFIRM' to execute the order. " +
     "Requires BUDA_API_KEY and BUDA_API_SECRET environment variables. " +
@@ -37,6 +38,30 @@ export const toolSchema = {
           "Limit price in quote currency. Required when price_type is 'limit'. " +
           "For Bid orders: highest price you will pay. For Ask orders: lowest price you will accept.",
       },
+      ioc: {
+        type: "boolean",
+        description: "Immediate-or-cancel: fill as much as possible, cancel the rest. Mutually exclusive with fok, post_only, gtd_timestamp.",
+      },
+      fok: {
+        type: "boolean",
+        description: "Fill-or-kill: fill the entire order or cancel it entirely. Mutually exclusive with ioc, post_only, gtd_timestamp.",
+      },
+      post_only: {
+        type: "boolean",
+        description: "Post-only: rejected if it would execute immediately as a taker. Mutually exclusive with ioc, fok, gtd_timestamp.",
+      },
+      gtd_timestamp: {
+        type: "string",
+        description: "Good-till-date: ISO 8601 datetime after which the order is canceled. Mutually exclusive with ioc, fok, post_only.",
+      },
+      stop_price: {
+        type: "number",
+        description: "Stop trigger price. Must be paired with stop_type.",
+      },
+      stop_type: {
+        type: "string",
+        description: "Stop trigger direction: '>=' triggers when price rises to stop_price, '<=' when it falls. Must be paired with stop_price.",
+      },
       confirmation_token: {
         type: "string",
         description:
@@ -54,6 +79,12 @@ type PlaceOrderArgs = {
   price_type: "limit" | "market";
   amount: number;
   limit_price?: number;
+  ioc?: boolean;
+  fok?: boolean;
+  post_only?: boolean;
+  gtd_timestamp?: string;
+  stop_price?: number;
+  stop_type?: ">=" | "<=";
   confirmation_token: string;
 };
 
@@ -61,7 +92,20 @@ export async function handlePlaceOrder(
   args: PlaceOrderArgs,
   client: BudaClient,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
-  const { market_id, type, price_type, amount, limit_price, confirmation_token } = args;
+  const {
+    market_id,
+    type,
+    price_type,
+    amount,
+    limit_price,
+    ioc,
+    fok,
+    post_only,
+    gtd_timestamp,
+    stop_price,
+    stop_type,
+    confirmation_token,
+  } = args;
 
   if (confirmation_token !== "CONFIRM") {
     return {
@@ -89,6 +133,41 @@ export async function handlePlaceOrder(
     };
   }
 
+  // Validate TIF mutual exclusivity
+  const tifFlags = [ioc, fok, post_only, gtd_timestamp !== undefined].filter(Boolean);
+  if (tifFlags.length > 1) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            error: "ioc, fok, post_only, and gtd_timestamp are mutually exclusive. Specify at most one.",
+            code: "VALIDATION_ERROR",
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  // Validate stop_price / stop_type must both be present or both absent
+  const hasStopPrice = stop_price !== undefined;
+  const hasStopType = stop_type !== undefined;
+  if (hasStopPrice !== hasStopType) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            error: "stop_price and stop_type must both be provided together.",
+            code: "VALIDATION_ERROR",
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
+
   try {
     const payload: Record<string, unknown> = {
       type,
@@ -111,7 +190,20 @@ export async function handlePlaceOrder(
           isError: true,
         };
       }
-      payload.limit = { price: limit_price, type: "gtc" };
+
+      let limitType = "gtc";
+      if (ioc) limitType = "ioc";
+      else if (fok) limitType = "fok";
+      else if (post_only) limitType = "post_only";
+      else if (gtd_timestamp !== undefined) limitType = "gtd";
+
+      const limitObj: Record<string, unknown> = { price: limit_price, type: limitType };
+      if (gtd_timestamp !== undefined) limitObj.expiration = gtd_timestamp;
+      payload.limit = limitObj;
+    }
+
+    if (hasStopPrice && hasStopType) {
+      payload.stop = { price: stop_price, type: stop_type };
     }
 
     const data = await client.post<OrderResponse>(
@@ -160,6 +252,31 @@ export function register(server: McpServer, client: BudaClient): void {
           "Limit price in quote currency. Required when price_type is 'limit'. " +
             "For Bid orders: highest price you will pay. For Ask orders: lowest price you will accept.",
         ),
+      ioc: z
+        .boolean()
+        .optional()
+        .describe("Immediate-or-cancel: fill as much as possible, cancel the rest. Mutually exclusive with fok, post_only, gtd_timestamp."),
+      fok: z
+        .boolean()
+        .optional()
+        .describe("Fill-or-kill: fill the entire order or cancel it entirely. Mutually exclusive with ioc, post_only, gtd_timestamp."),
+      post_only: z
+        .boolean()
+        .optional()
+        .describe("Post-only: rejected if it would execute immediately as a taker. Mutually exclusive with ioc, fok, gtd_timestamp."),
+      gtd_timestamp: z
+        .string()
+        .optional()
+        .describe("Good-till-date: ISO 8601 datetime after which the order is canceled. Mutually exclusive with ioc, fok, post_only."),
+      stop_price: z
+        .number()
+        .positive()
+        .optional()
+        .describe("Stop trigger price. Must be paired with stop_type."),
+      stop_type: z
+        .enum([">=", "<="])
+        .optional()
+        .describe("Stop trigger direction: '>=' triggers when price rises to stop_price, '<=' when it falls. Must be paired with stop_price."),
       confirmation_token: z
         .string()
         .describe(

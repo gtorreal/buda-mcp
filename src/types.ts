@@ -320,3 +320,38 @@ export interface Bank {
 export interface BanksResponse {
   banks: Bank[];
 }
+
+// ----- Cancel All Orders (private) -----
+
+export interface CancelAllOrdersResponse {
+  canceled_count: number;
+}
+
+// ----- Lightning (private) -----
+
+export interface LightningWithdrawal {
+  id: number;
+  state: string;
+  amount: Amount;
+  fee: Amount;
+  payment_hash: string;
+  created_at: string;
+}
+
+export interface LightningWithdrawalResponse {
+  lightning_withdrawal: LightningWithdrawal;
+}
+
+export interface LightningInvoice {
+  id: number;
+  payment_request: string;
+  amount: Amount;
+  description: string | null;
+  expires_at: string;
+  state: string;
+  created_at: string;
+}
+
+export interface LightningInvoiceResponse {
+  lightning_network_invoice: LightningInvoice;
+}

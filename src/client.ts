@@ -173,4 +173,24 @@ export class BudaClient {
     );
     return this.handleResponse<T>(response, path);
   }
+
+  async delete<T>(path: string, params?: Record<string, string | number>): Promise<T> {
+    const url = new URL(`${this.baseUrl}${path}.json`);
+
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        url.searchParams.set(key, String(value));
+      }
+    }
+
+    const urlPath = url.pathname + url.search;
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "User-Agent": `buda-mcp/${VERSION}`,
+      ...this.authHeaders("DELETE", urlPath),
+    };
+
+    const response = await this.fetchWithRetry(url, { method: "DELETE", headers }, path);
+    return this.handleResponse<T>(response, path);
+  }
 }

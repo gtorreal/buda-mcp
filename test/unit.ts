@@ -29,6 +29,12 @@ import { handleListRemittances, handleGetRemittance, handleQuoteRemittance, hand
 import { handleGetRealQuotation } from "../src/tools/quotation.js";
 import { handleListRemittanceRecipients, handleGetRemittanceRecipient } from "../src/tools/remittance_recipients.js";
 import { handleGetAvailableBanks } from "../src/tools/banks.js";
+import { handleCancelAllOrders } from "../src/tools/cancel_all_orders.js";
+import { handleCancelOrderByClientId } from "../src/tools/cancel_order_by_client_id.js";
+import { handlePlaceBatchOrders } from "../src/tools/batch_orders.js";
+import { handleCreateWithdrawal } from "../src/tools/withdrawals.js";
+import { handleCreateFiatDeposit } from "../src/tools/deposits.js";
+import { handleLightningWithdrawal, handleCreateLightningInvoice } from "../src/tools/lightning.js";
 
 // ----------------------------------------------------------------
 // Minimal test harness
@@ -2119,6 +2125,937 @@ await test("handleAcceptRemittanceQuote: 422 expired quote passthrough", async (
   try {
     const client = new BudaClient("https://www.buda.com/api/v2");
     const result = await handleAcceptRemittanceQuote({ id: 77, confirmation_token: "CONFIRM" }, client);
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 422, "code should be 422");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 3 — cancel_all_orders
+// ----------------------------------------------------------------
+
+section("cancel_all_orders");
+
+await test("handleCancelAllOrders: missing/wrong token returns CONFIRMATION_REQUIRED without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleCancelAllOrders({ market_id: "BTC-CLP", confirmation_token: "NOPE" }, client);
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "CONFIRMATION_REQUIRED", "code should be CONFIRMATION_REQUIRED");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCancelAllOrders: '*' + CONFIRM cancels all markets", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({ canceled_count: 5 }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCancelAllOrders({ market_id: "*", confirmation_token: "CONFIRM" }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { canceled_count: number; market_id: string };
+    assertEqual(parsed.canceled_count, 5, "canceled_count should be 5");
+    assertEqual(parsed.market_id, "*", "market_id should be *");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCancelAllOrders: specific market + CONFIRM", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({ canceled_count: 2 }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCancelAllOrders({ market_id: "BTC-CLP", confirmation_token: "CONFIRM" }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { canceled_count: number; market_id: string };
+    assertEqual(parsed.canceled_count, 2, "canceled_count should be 2");
+    assertEqual(parsed.market_id, "BTC-CLP", "market_id should be BTC-CLP");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCancelAllOrders: invalid market format returns INVALID_MARKET_ID even with CONFIRM", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleCancelAllOrders({ market_id: "INVALID!!!", confirmation_token: "CONFIRM" }, client);
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "INVALID_MARKET_ID", "code should be INVALID_MARKET_ID");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCancelAllOrders: API 404 passthrough", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Not found" }), { status: 404 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCancelAllOrders({ market_id: "BTC-CLP", confirmation_token: "CONFIRM" }, client);
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 404, "code should be 404");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 3 — cancel_order_by_client_id
+// ----------------------------------------------------------------
+
+section("cancel_order_by_client_id");
+
+await test("handleCancelOrderByClientId: missing/wrong token returns CONFIRMATION_REQUIRED without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleCancelOrderByClientId({ client_id: "my-order-1", confirmation_token: "NOPE" }, client);
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string; client_id: string };
+    assertEqual(parsed.code, "CONFIRMATION_REQUIRED", "code should be CONFIRMATION_REQUIRED");
+    assertEqual(parsed.client_id, "my-order-1", "client_id should be echoed back");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCancelOrderByClientId: happy path returns flat order", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        order: {
+          id: 999,
+          type: "Bid",
+          state: "canceling",
+          created_at: "2024-01-01T00:00:00Z",
+          market_id: "BTC-CLP",
+          fee_currency: "CLP",
+          price_type: "limit",
+          order_type: "limit",
+          client_id: "my-order-1",
+          limit: ["50000000", "CLP"],
+          amount: ["0.001", "BTC"],
+          original_amount: ["0.001", "BTC"],
+          traded_amount: ["0", "BTC"],
+          total_exchanged: ["0", "CLP"],
+          paid_fee: ["0", "CLP"],
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCancelOrderByClientId({ client_id: "my-order-1", confirmation_token: "CONFIRM" }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: number;
+      state: string;
+      client_id: string;
+      limit_price: number;
+    };
+    assertEqual(parsed.id, 999, "id should be 999");
+    assertEqual(parsed.state, "canceling", "state should be canceling");
+    assertEqual(parsed.client_id, "my-order-1", "client_id should be my-order-1");
+    assertEqual(parsed.limit_price, 50000000, "limit_price should be flattened");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCancelOrderByClientId: 404 passthrough", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Not found" }), { status: 404 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCancelOrderByClientId({ client_id: "ghost-order", confirmation_token: "CONFIRM" }, client);
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 404, "code should be 404");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 3 — place_batch_orders
+// ----------------------------------------------------------------
+
+section("place_batch_orders");
+
+await test("handlePlaceBatchOrders: missing/wrong token returns CONFIRMATION_REQUIRED without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handlePlaceBatchOrders(
+      {
+        orders: [{ market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.001, limit_price: 50000000 }],
+        confirmation_token: "NOPE",
+      },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "CONFIRMATION_REQUIRED", "code should be CONFIRMATION_REQUIRED");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handlePlaceBatchOrders: all valid + CONFIRM places all orders", async () => {
+  let callCount = 0;
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    callCount++;
+    return new Response(
+      JSON.stringify({
+        order: {
+          id: callCount * 100,
+          type: "Bid",
+          state: "pending",
+          created_at: "2024-01-01T00:00:00Z",
+          market_id: "BTC-CLP",
+          fee_currency: "CLP",
+          price_type: "limit",
+          order_type: "limit",
+          client_id: null,
+          limit: ["50000000", "CLP"],
+          amount: ["0.001", "BTC"],
+          original_amount: ["0.001", "BTC"],
+          traded_amount: ["0", "BTC"],
+          total_exchanged: ["0", "CLP"],
+          paid_fee: ["0", "CLP"],
+        },
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handlePlaceBatchOrders(
+      {
+        orders: [
+          { market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.001, limit_price: 50000000 },
+          { market_id: "ETH-CLP", type: "Ask", price_type: "limit", amount: 0.1, limit_price: 3000000 },
+        ],
+        confirmation_token: "CONFIRM",
+      },
+      client,
+    );
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      total: number;
+      succeeded: number;
+      failed: number;
+      results: Array<{ success: boolean }>;
+    };
+    assertEqual(parsed.total, 2, "total should be 2");
+    assertEqual(parsed.succeeded, 2, "succeeded should be 2");
+    assertEqual(parsed.failed, 0, "failed should be 0");
+    assertEqual(callCount, 2, "should have made 2 API calls");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handlePlaceBatchOrders: one invalid market → pre-validation error, zero API calls", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handlePlaceBatchOrders(
+      {
+        orders: [
+          { market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.001, limit_price: 50000000 },
+          { market_id: "INVALID!!!", type: "Ask", price_type: "limit", amount: 0.1, limit_price: 3000000 },
+        ],
+        confirmation_token: "CONFIRM",
+      },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string; index: number };
+    assertEqual(parsed.code, "INVALID_MARKET_ID", "code should be INVALID_MARKET_ID");
+    assertEqual(parsed.index, 1, "index should be 1");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handlePlaceBatchOrders: missing limit_price on limit order → pre-validation error", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handlePlaceBatchOrders(
+      {
+        orders: [{ market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.001 }],
+        confirmation_token: "CONFIRM",
+      },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "VALIDATION_ERROR", "code should be VALIDATION_ERROR");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handlePlaceBatchOrders: one mid-batch API error → partial success report", async () => {
+  let callCount = 0;
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    callCount++;
+    if (callCount === 2) {
+      return new Response(JSON.stringify({ message: "Insufficient balance" }), { status: 422 });
+    }
+    return new Response(
+      JSON.stringify({
+        order: {
+          id: 100,
+          type: "Bid",
+          state: "pending",
+          created_at: "2024-01-01T00:00:00Z",
+          market_id: "BTC-CLP",
+          fee_currency: "CLP",
+          price_type: "limit",
+          order_type: "limit",
+          client_id: null,
+          limit: ["50000000", "CLP"],
+          amount: ["0.001", "BTC"],
+          original_amount: ["0.001", "BTC"],
+          traded_amount: ["0", "BTC"],
+          total_exchanged: ["0", "CLP"],
+          paid_fee: ["0", "CLP"],
+        },
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handlePlaceBatchOrders(
+      {
+        orders: [
+          { market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.001, limit_price: 50000000 },
+          { market_id: "ETH-CLP", type: "Ask", price_type: "limit", amount: 0.1, limit_price: 3000000 },
+        ],
+        confirmation_token: "CONFIRM",
+      },
+      client,
+    );
+    assert(!result.isError, "partial success should not set isError");
+    const parsed = JSON.parse(result.content[0].text) as {
+      total: number;
+      succeeded: number;
+      failed: number;
+      warning?: string;
+    };
+    assertEqual(parsed.total, 2, "total should be 2");
+    assertEqual(parsed.succeeded, 1, "succeeded should be 1");
+    assertEqual(parsed.failed, 1, "failed should be 1");
+    assert(parsed.warning !== undefined, "warning should be present for partial failure");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 3 — place_order extended (3.22)
+// ----------------------------------------------------------------
+
+section("place_order extended (TIF + stop)");
+
+await test("handlePlaceOrder: existing limit order unchanged (no regression)", async () => {
+  const savedFetch = globalThis.fetch;
+  let capturedBody: Record<string, unknown> = {};
+  globalThis.fetch = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        order: {
+          id: 1,
+          type: "Bid",
+          state: "pending",
+          created_at: "2024-01-01T00:00:00Z",
+          market_id: "BTC-CLP",
+          fee_currency: "CLP",
+          price_type: "limit",
+          order_type: "limit",
+          client_id: null,
+          limit: ["50000000", "CLP"],
+          amount: ["0.001", "BTC"],
+          original_amount: ["0.001", "BTC"],
+          traded_amount: ["0", "BTC"],
+          total_exchanged: ["0", "CLP"],
+          paid_fee: ["0", "CLP"],
+        },
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handlePlaceOrder(
+      { market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.001, limit_price: 50000000, confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(!result.isError, "should not be error");
+    const limit = capturedBody.limit as Record<string, unknown>;
+    assertEqual(limit.type as string, "gtc", "default limit type should be gtc");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handlePlaceOrder: IOC flag → limit.type='ioc'", async () => {
+  const savedFetch = globalThis.fetch;
+  let capturedBody: Record<string, unknown> = {};
+  globalThis.fetch = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+    return new Response(
+      JSON.stringify({
+        order: {
+          id: 2,
+          type: "Ask",
+          state: "traded",
+          created_at: "2024-01-01T00:00:00Z",
+          market_id: "BTC-CLP",
+          fee_currency: "CLP",
+          price_type: "limit",
+          order_type: "limit",
+          client_id: null,
+          limit: ["50000000", "CLP"],
+          amount: ["0.001", "BTC"],
+          original_amount: ["0.001", "BTC"],
+          traded_amount: ["0.001", "BTC"],
+          total_exchanged: ["50000", "CLP"],
+          paid_fee: ["250", "CLP"],
+        },
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handlePlaceOrder(
+      { market_id: "BTC-CLP", type: "Ask", price_type: "limit", amount: 0.001, limit_price: 50000000, ioc: true, confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(!result.isError, "should not be error");
+    const limit = capturedBody.limit as Record<string, unknown>;
+    assertEqual(limit.type as string, "ioc", "limit type should be ioc");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handlePlaceOrder: stop_price without stop_type → VALIDATION_ERROR", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handlePlaceOrder(
+      { market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.001, limit_price: 50000000, stop_price: 45000000, confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "VALIDATION_ERROR", "code should be VALIDATION_ERROR");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handlePlaceOrder: mutually exclusive TIF flags → VALIDATION_ERROR", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handlePlaceOrder(
+      { market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.001, limit_price: 50000000, ioc: true, fok: true, confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "VALIDATION_ERROR", "code should be VALIDATION_ERROR");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 3 — create_withdrawal
+// ----------------------------------------------------------------
+
+section("create_withdrawal");
+
+await test("handleCreateWithdrawal: missing/wrong token returns CONFIRMATION_REQUIRED without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleCreateWithdrawal(
+      { currency: "BTC", amount: 0.01, address: "bc1q...", confirmation_token: "NOPE" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "CONFIRMATION_REQUIRED", "code should be CONFIRMATION_REQUIRED");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateWithdrawal: both address+bank_account_id → VALIDATION_ERROR", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleCreateWithdrawal(
+      { currency: "BTC", amount: 0.01, address: "bc1q...", bank_account_id: 123, confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "VALIDATION_ERROR", "code should be VALIDATION_ERROR");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateWithdrawal: neither address nor bank_account_id → VALIDATION_ERROR", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleCreateWithdrawal(
+      { currency: "BTC", amount: 0.01, confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "VALIDATION_ERROR", "code should be VALIDATION_ERROR");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateWithdrawal: crypto path + CONFIRM", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        withdrawal: {
+          id: 77,
+          state: "pending",
+          currency: "BTC",
+          amount: ["0.01", "BTC"],
+          fee: ["0.0001", "BTC"],
+          address: "bc1q...",
+          tx_hash: null,
+          bank_account_id: null,
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCreateWithdrawal(
+      { currency: "BTC", amount: 0.01, address: "bc1q...", confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: number;
+      state: string;
+      amount: number;
+      address: string | null;
+    };
+    assertEqual(parsed.id, 77, "id should be 77");
+    assertEqual(parsed.state, "pending", "state should be pending");
+    assertEqual(parsed.amount, 0.01, "amount should be flattened");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateWithdrawal: fiat path + CONFIRM", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        withdrawal: {
+          id: 88,
+          state: "pending",
+          currency: "CLP",
+          amount: ["100000", "CLP"],
+          fee: ["0", "CLP"],
+          address: null,
+          tx_hash: null,
+          bank_account_id: 123,
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCreateWithdrawal(
+      { currency: "CLP", amount: 100000, bank_account_id: 123, confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { id: number; bank_account_id: number | null };
+    assertEqual(parsed.id, 88, "id should be 88");
+    assertEqual(parsed.bank_account_id, 123, "bank_account_id should be 123");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateWithdrawal: 422 insufficient balance passthrough", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Insufficient balance" }), { status: 422 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCreateWithdrawal(
+      { currency: "BTC", amount: 999, address: "bc1q...", confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 422, "code should be 422");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 3 — create_fiat_deposit
+// ----------------------------------------------------------------
+
+section("create_fiat_deposit");
+
+await test("handleCreateFiatDeposit: missing/wrong token returns CONFIRMATION_REQUIRED without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleCreateFiatDeposit(
+      { currency: "CLP", amount: 100000, confirmation_token: "NOPE" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "CONFIRMATION_REQUIRED", "code should be CONFIRMATION_REQUIRED");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateFiatDeposit: invalid currency → INVALID_CURRENCY before API", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleCreateFiatDeposit(
+      { currency: "!!!", amount: 100000, confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "INVALID_CURRENCY", "code should be INVALID_CURRENCY");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateFiatDeposit: happy path + CONFIRM", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        deposit: {
+          id: 55,
+          state: "pending_info",
+          currency: "CLP",
+          amount: ["100000", "CLP"],
+          fee: ["0", "CLP"],
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+          transfer_account_id: null,
+          transaction_hash: null,
+        },
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCreateFiatDeposit(
+      { currency: "CLP", amount: 100000, bank: "BancoEstado", confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { id: number; state: string; amount: number };
+    assertEqual(parsed.id, 55, "id should be 55");
+    assertEqual(parsed.state, "pending_info", "state should be pending_info");
+    assertEqual(parsed.amount, 100000, "amount should be flattened");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateFiatDeposit: 422 passthrough", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Unprocessable Entity" }), { status: 422 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCreateFiatDeposit(
+      { currency: "CLP", amount: 100000, confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 422, "code should be 422");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 3 — lightning_withdrawal
+// ----------------------------------------------------------------
+
+section("lightning_withdrawal");
+
+await test("handleLightningWithdrawal: missing/wrong token returns CONFIRMATION_REQUIRED without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleLightningWithdrawal(
+      { invoice: "lnbc1000u1ptest...", confirmation_token: "NOPE" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string; preview?: { invoice_preview: string } };
+    assertEqual(parsed.code, "CONFIRMATION_REQUIRED", "code should be CONFIRMATION_REQUIRED");
+    assert(parsed.preview?.invoice_preview !== undefined, "should include invoice_preview");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleLightningWithdrawal: happy path returns flat withdrawal", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        lightning_withdrawal: {
+          id: 42,
+          state: "completed",
+          amount: ["100000", "SAT"],
+          fee: ["1000", "SAT"],
+          payment_hash: "abc123",
+          created_at: "2024-01-01T00:00:00Z",
+        },
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleLightningWithdrawal(
+      { invoice: "lnbc1000u1ptest...", confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: number;
+      state: string;
+      amount: number;
+      payment_hash: string;
+    };
+    assertEqual(parsed.id, 42, "id should be 42");
+    assertEqual(parsed.state, "completed", "state should be completed");
+    assertEqual(parsed.amount, 100000, "amount should be flattened");
+    assertEqual(parsed.payment_hash, "abc123", "payment_hash should be abc123");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleLightningWithdrawal: API error passthrough", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Invoice already paid" }), { status: 422 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleLightningWithdrawal(
+      { invoice: "lnbc1000u1ptest...", confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 422, "code should be 422");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 3 — create_lightning_invoice
+// ----------------------------------------------------------------
+
+section("create_lightning_invoice");
+
+await test("handleCreateLightningInvoice: happy path returns invoice fields", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        lightning_network_invoice: {
+          id: 99,
+          payment_request: "lnbc1000u1pfinal...",
+          amount: ["100000", "SAT"],
+          description: "Test payment",
+          expires_at: "2024-01-01T01:00:00Z",
+          state: "pending",
+          created_at: "2024-01-01T00:00:00Z",
+        },
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCreateLightningInvoice(
+      { amount_satoshis: 100000, description: "Test payment", expiry_seconds: 3600 },
+      client,
+    );
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: number;
+      payment_request: string;
+      amount_satoshis: number;
+      description: string | null;
+      expires_at: string;
+    };
+    assertEqual(parsed.id, 99, "id should be 99");
+    assertEqual(parsed.payment_request, "lnbc1000u1pfinal...", "payment_request should match");
+    assertEqual(parsed.amount_satoshis, 100000, "amount_satoshis should be 100000");
+    assertEqual(parsed.description, "Test payment", "description should match");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateLightningInvoice: API error passthrough", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Unprocessable Entity" }), { status: 422 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCreateLightningInvoice({ amount_satoshis: 100000 }, client);
     assert(result.isError === true, "should be error");
     const parsed = JSON.parse(result.content[0].text) as { code: number };
     assertEqual(parsed.code, 422, "code should be 422");
