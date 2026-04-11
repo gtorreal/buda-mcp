@@ -14,7 +14,7 @@ Real-time market data from [Buda.com](https://www.buda.com/), the leading crypto
 
 Use this server to query live prices, spreads, order books, OHLCV candles, trade history, volume, and cross-market arbitrage opportunities for all BTC, ETH, and altcoin markets quoted in CLP, COP, PEN, and USDC. Optional API credentials unlock account tools for balances and order management.
 
-**v1.3.0 output quality improvements:** All response schemas are now flat and fully typed — monetary amounts are returned as floats with separate `_currency` fields instead of `["amount", "currency"]` arrays, making responses directly usable by LLMs without parsing.
+**v1.4.0** adds 5 new tools: `simulate_order`, `calculate_position_size`, `get_market_sentiment`, `get_technical_indicators`, and a dead man's switch (`schedule_cancel_all` + `renew_cancel_timer` + `disarm_cancel_timer`). All response schemas are flat and fully typed.
 
 ---
 
@@ -62,6 +62,22 @@ OHLCV (open/high/low/close/volume) candles derived from recent trade history (Bu
 Detects cross-country price discrepancies for a given asset across Buda's CLP, COP, and PEN markets, normalized to USDC. Returns pairwise discrepancies above `threshold_pct` sorted by size. Includes a `fees_note` reminding that Buda's 0.8% taker fee per leg (~1.6% round-trip) must be deducted.  
 **Parameters:** `base_currency` *(required)* — e.g. `BTC`, `threshold_pct` *(optional, default 0.5)*.
 
+### `simulate_order`
+Simulates a buy or sell order using live ticker data — no order is ever placed. Returns `estimated_fill_price`, `fee_amount`, `fee_currency`, `total_cost`, and `slippage_vs_mid_pct`. All outputs include `simulation: true`. Uses actual taker fee from market data (0.8% crypto / 0.5% stablecoin).  
+**Parameters:** `market_id` *(required)*, `side` (`buy`|`sell`) *(required)*, `amount` *(required)*, `price` *(optional — omit for market order simulation)*.
+
+### `calculate_position_size`
+Calculates how many units to buy or sell so a stop-loss hit costs exactly `risk_pct`% of `capital`. Fully client-side — no API call. Returns `units`, `capital_at_risk`, `position_value`, `fee_impact`, and a plain-text `risk_reward_note`.  
+**Parameters:** `market_id`, `capital`, `risk_pct` (0.1–10), `entry_price`, `stop_loss_price` *(all required)*.
+
+### `get_market_sentiment`
+Composite sentiment score (−100 to +100) from three components: 24h price variation (40%), volume vs 7-day daily average (35%), spread vs market-type baseline (25%). Returns `score`, `label` (`bearish`/`neutral`/`bullish`), `component_breakdown`, and a `disclaimer`.  
+**Parameters:** `market_id` *(required)*.
+
+### `get_technical_indicators`
+RSI (14), MACD (12/26/9), Bollinger Bands (20, 2σ), SMA 20, and SMA 50 — computed server-side from Buda trade history (no external libraries). Returns latest values + signal interpretations. Returns a structured warning if fewer than 50 candles are available after aggregation. Includes `disclaimer`.  
+**Parameters:** `market_id` *(required)*, `period` (`1h`/`4h`/`1d`, default `1h`), `limit` *(optional, 500–1000)*.
+
 ### Authenticated tools (require `BUDA_API_KEY` + `BUDA_API_SECRET`)
 
 > **Important:** Authenticated instances must run locally only — never expose a server with API credentials publicly.
@@ -80,6 +96,19 @@ Place a limit or market order. Requires `confirmation_token="CONFIRM"` to preven
 ### `cancel_order`
 Cancel an open order by ID. Requires `confirmation_token="CONFIRM"`.  
 **Parameters:** `order_id`, `confirmation_token`.
+
+### `schedule_cancel_all`
+**WARNING: timer state is lost on server restart. Use only on locally-run instances.**  
+Arms an in-memory dead man's switch: if not renewed within `ttl_seconds`, all open orders for the market are automatically cancelled. Requires `confirmation_token="CONFIRM"`.  
+**Parameters:** `market_id`, `ttl_seconds` (10–300), `confirmation_token`.
+
+### `renew_cancel_timer`
+Resets the dead man's switch TTL for a market. No confirmation required. Must have an active timer.  
+**Parameters:** `market_id`.
+
+### `disarm_cancel_timer`
+Disarms the dead man's switch without cancelling any orders. Safe to call even with no active timer.  
+**Parameters:** `market_id`.
 
 ---
 
@@ -106,6 +135,11 @@ Cancel an open order by ID. Requires `confirmation_token="CONFIRM"`.
 - *"Show me hourly BTC-CLP candles."*
 - *"What's my available BTC balance?"* *(authenticated)*
 - *"Show my open orders on BTC-CLP."* *(authenticated)*
+- *"How much would it cost to buy 0.1 ETH on ETH-CLP right now?"*
+- *"How many BTC can I buy with 1M CLP if I risk 2% with a stop at 78M?"*
+- *"Is the BTC-CLP market bullish or bearish right now?"*
+- *"Is BTC-CLP RSI overbought on the 4-hour chart?"*
+- *"Arm a 60-second dead man's switch for my BTC-CLP orders."* *(authenticated)*
 
 ---
 

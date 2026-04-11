@@ -7,6 +7,37 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.4.0] – 2026-04-11
+
+### Added
+
+- **`simulate_order`** (`src/tools/simulate_order.ts`) — public tool that simulates a buy or sell order using live ticker and market data without placing a real order. Inputs: `market_id`, `side` (`buy`|`sell`), `amount`, optional `price` (omit for market order). Fetches ticker (cached) + market info (cached) in parallel to determine fill price, fee rate, and slippage. Uses the actual `taker_fee` from the market (0.8% crypto / 0.5% stablecoin). All responses include `simulation: true`. Exports `handleSimulateOrder` for unit testing.
+
+- **`calculate_position_size`** (`src/tools/calculate_position_size.ts`) — public tool for Kelly-style position sizing from capital, risk %, entry price, and stop-loss. Fully client-side — no API calls. Infers `side` (`buy`/`sell`) from the stop vs entry relationship. Validates that stop ≠ entry. Returns `units`, `capital_at_risk`, `position_value`, `fee_impact` (0.8% conservative taker), and a plain-text `risk_reward_note`. Exports `handleCalculatePositionSize` for unit testing.
+
+- **`get_market_sentiment`** (`src/tools/market_sentiment.ts`) — public tool computing a composite sentiment score (−100 to +100) from three weighted components: price variation 24h (40%), volume vs 7-day daily average (35%), bid/ask spread vs market-type baseline (25%). Spread baseline: 1.0% for crypto pairs, 0.3% for stablecoin pairs (USDT/USDC/DAI/TUSD). Returns `score`, `label` (`bearish`/`neutral`/`bullish`), `component_breakdown`, `data_timestamp`, and a `disclaimer`. Exports `handleMarketSentiment` for unit testing.
+
+- **`get_technical_indicators`** (`src/tools/technical_indicators.ts`) — public tool computing RSI (14), MACD (12/26/9), Bollinger Bands (20, 2σ), SMA 20, and SMA 50 from Buda trade history. No external math libraries — all algorithms implemented inline. Uses at least 500 trades (minimum enforced). Returns signal interpretations: RSI overbought/oversold/neutral, MACD bullish/bearish crossover/neutral, BB above/below/within bands. Returns a structured `{ indicators: null, warning: "insufficient_data" }` object when fewer than 50 candles are available. Includes `disclaimer` field. Exports `handleTechnicalIndicators` for unit testing.
+
+- **`schedule_cancel_all` + `renew_cancel_timer` + `disarm_cancel_timer`** (`src/tools/dead_mans_switch.ts`) — three auth-gated tools implementing an in-memory dead man's switch. `schedule_cancel_all` requires `confirmation_token="CONFIRM"`, `ttl_seconds` (10–300), and a `market_id`; arms a `setTimeout` that fetches all pending orders and cancels each one if not renewed. `renew_cancel_timer` resets the countdown for a market (no confirmation). `disarm_cancel_timer` clears the timer without cancelling orders (no confirmation). **WARNING: timer state is lost on server restart — not suitable for hosted deployments (e.g. Railway). Use only on locally-run instances.** Timer state is module-level and persists across HTTP requests within a process. Exports `handleScheduleCancelAll`, `handleRenewCancelTimer`, `handleDisarmCancelTimer` for unit testing.
+
+- **`src/utils.ts` — `aggregateTradesToCandles(entries, period)`** — shared utility extracted from `get_price_history` logic. Takes raw Buda trade entries and a period string (`1h`/`4h`/`1d`), returns sorted `OhlcvCandle[]`. Used by both `get_price_history` and `get_technical_indicators`.
+
+- **`src/types.ts` — `OhlcvCandle` interface** — exported for use across tools.
+
+- **Unit tests (24 new, 59 total)** in `test/unit.ts`:
+  - **i. `simulate_order`** (5 tests): market buy fills at min_ask; market sell fills at max_bid; limit order_type_assumed; stablecoin 0.5% fee; invalid market_id.
+  - **j. `calculate_position_size`** (4 tests): buy scenario; sell scenario; stop == entry error; invalid market_id.
+  - **k. `get_market_sentiment`** (5 tests): disclaimer present; neutral label; bullish on strong positive variation; bearish on strong negative variation; invalid market_id.
+  - **l. `get_technical_indicators`** (4 tests): `aggregateTradesToCandles` OHLCV correctness; insufficient candles warning; sufficient candles with correct RSI signal; invalid market_id.
+  - **m. `schedule_cancel_all`** (6 tests): CONFIRM guard; invalid market_id; CONFIRM activates + expires_at; renew with no timer; disarm with no timer (no-op); disarm after arm clears timer.
+
+### Changed
+
+- **`src/tools/price_history.ts`** — refactored to use the new shared `aggregateTradesToCandles()` from `utils.ts`. Behaviour is identical.
+
+---
+
 ## [1.3.0] – 2026-04-11
 
 ### Added

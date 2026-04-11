@@ -3,23 +3,8 @@ import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { MemoryCache } from "../cache.js";
 import { validateMarketId } from "../validation.js";
+import { aggregateTradesToCandles } from "../utils.js";
 import type { TradesResponse } from "../types.js";
-
-const PERIOD_MS: Record<string, number> = {
-  "1h": 60 * 60 * 1000,
-  "4h": 4 * 60 * 60 * 1000,
-  "1d": 24 * 60 * 60 * 1000,
-};
-
-interface OhlcvCandle {
-  time: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  trade_count: number;
-}
 
 export const toolSchema = {
   name: "get_price_history",
@@ -104,44 +89,7 @@ export function register(server: McpServer, client: BudaClient, _cache: MemoryCa
           };
         }
 
-        // Buda returns trades newest-first; sort ascending so open = first chronological price
-        // and close = last chronological price within each candle bucket.
-        const sortedEntries = [...entries].sort(
-          ([a], [b]) => parseInt(a, 10) - parseInt(b, 10),
-        );
-
-        const periodMs = PERIOD_MS[period];
-        const buckets = new Map<number, OhlcvCandle>();
-
-        for (const [tsMs, amount, price, _direction] of sortedEntries) {
-          const ts = parseInt(tsMs, 10);
-          const bucketStart = Math.floor(ts / periodMs) * periodMs;
-          const p = parseFloat(price);
-          const v = parseFloat(amount);
-
-          if (!buckets.has(bucketStart)) {
-            buckets.set(bucketStart, {
-              time: new Date(bucketStart).toISOString(),
-              open: p,
-              high: p,
-              low: p,
-              close: p,
-              volume: v,
-              trade_count: 1,
-            });
-          } else {
-            const candle = buckets.get(bucketStart)!;
-            if (p > candle.high) candle.high = p;
-            if (p < candle.low) candle.low = p;
-            candle.close = p;
-            candle.volume = parseFloat((candle.volume + v).toFixed(8));
-            candle.trade_count++;
-          }
-        }
-
-        const candles = Array.from(buckets.entries())
-          .sort(([a], [b]) => a - b)
-          .map(([, candle]) => candle);
+        const candles = aggregateTradesToCandles(entries, period);
 
         const result = {
           market_id: market_id.toUpperCase(),

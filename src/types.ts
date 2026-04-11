@@ -133,3 +133,15 @@ export interface OrdersResponse {
     total_pages: number;
   };
 }
+
+// ----- OHLCV Candles -----
+
+export interface OhlcvCandle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  trade_count: number;
+}

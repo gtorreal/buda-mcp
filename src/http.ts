@@ -19,6 +19,11 @@ import * as balances from "./tools/balances.js";
 import * as orders from "./tools/orders.js";
 import * as placeOrder from "./tools/place_order.js";
 import * as cancelOrder from "./tools/cancel_order.js";
+import * as simulateOrder from "./tools/simulate_order.js";
+import * as positionSize from "./tools/calculate_position_size.js";
+import * as marketSentiment from "./tools/market_sentiment.js";
+import * as technicalIndicators from "./tools/technical_indicators.js";
+import * as deadMansSwitch from "./tools/dead_mans_switch.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
@@ -44,6 +49,10 @@ const PUBLIC_TOOL_SCHEMAS = [
   priceHistory.toolSchema,
   arbitrage.toolSchema,
   marketSummary.toolSchema,
+  simulateOrder.toolSchema,
+  positionSize.toolSchema,
+  marketSentiment.toolSchema,
+  technicalIndicators.toolSchema,
 ];
 
 const AUTH_TOOL_SCHEMAS = [
@@ -51,6 +60,9 @@ const AUTH_TOOL_SCHEMAS = [
   orders.toolSchema,
   placeOrder.toolSchema,
   cancelOrder.toolSchema,
+  deadMansSwitch.toolSchema,
+  deadMansSwitch.renewToolSchema,
+  deadMansSwitch.disarmToolSchema,
 ];
 
 function createServer(): McpServer {
@@ -69,12 +81,17 @@ function createServer(): McpServer {
   priceHistory.register(server, client, reqCache);
   arbitrage.register(server, client, reqCache);
   marketSummary.register(server, client, reqCache);
+  simulateOrder.register(server, client, reqCache);
+  positionSize.register(server);
+  marketSentiment.register(server, client, reqCache);
+  technicalIndicators.register(server, client);
 
   if (authEnabled) {
     balances.register(server, client);
     orders.register(server, client);
     placeOrder.register(server, client);
     cancelOrder.register(server, client);
+    deadMansSwitch.register(server, client);
   }
 
   // MCP Resources

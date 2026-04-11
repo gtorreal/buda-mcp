@@ -20,6 +20,11 @@ import * as balances from "./tools/balances.js";
 import * as orders from "./tools/orders.js";
 import * as placeOrder from "./tools/place_order.js";
 import * as cancelOrder from "./tools/cancel_order.js";
+import * as simulateOrder from "./tools/simulate_order.js";
+import * as positionSize from "./tools/calculate_position_size.js";
+import * as marketSentiment from "./tools/market_sentiment.js";
+import * as technicalIndicators from "./tools/technical_indicators.js";
+import * as deadMansSwitch from "./tools/dead_mans_switch.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
 const client = new BudaClient(
@@ -44,6 +49,10 @@ compareMarkets.register(server, client, cache);
 priceHistory.register(server, client, cache);
 arbitrage.register(server, client, cache);
 marketSummary.register(server, client, cache);
+simulateOrder.register(server, client, cache);
+positionSize.register(server);
+marketSentiment.register(server, client, cache);
+technicalIndicators.register(server, client);
 
 // Auth-gated tools — only registered when API credentials are present
 if (client.hasAuth()) {
@@ -51,6 +60,7 @@ if (client.hasAuth()) {
   orders.register(server, client);
   placeOrder.register(server, client);
   cancelOrder.register(server, client);
+  deadMansSwitch.register(server, client);
 }
 
 // MCP Resources
