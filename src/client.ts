@@ -113,7 +113,15 @@ export class BudaClient {
       } catch {
         // ignore parse error, use statusText
       }
-      throw new BudaApiError(response.status, path, `Buda API ${response.status}: ${detail}`);
+      // Log full upstream detail server-side only — never forward to MCP caller
+      process.stderr.write(
+        JSON.stringify({ buda_api_error: true, status: response.status, path, detail }) + "\n",
+      );
+      const clientMsg =
+        response.status === 429
+          ? `Rate limit exceeded on ${path}. Retry later.`
+          : `Buda API error ${response.status} on ${path}.`;
+      throw new BudaApiError(response.status, path, clientMsg);
     }
     return response.json() as Promise<T>;
   }

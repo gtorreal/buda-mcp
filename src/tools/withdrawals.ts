@@ -254,7 +254,11 @@ export async function handleCreateWithdrawal(
   }
 }
 
-export function register(server: McpServer, client: BudaClient): void {
+export function register(
+  server: McpServer,
+  client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
+): void {
   server.tool(
     getWithdrawalHistoryToolSchema.name,
     getWithdrawalHistoryToolSchema.description,
@@ -283,6 +287,6 @@ export function register(server: McpServer, client: BudaClient): void {
         .string()
         .describe("Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."),
     },
-    (args) => handleCreateWithdrawal(args, client),
+    (args) => handleCreateWithdrawal(args, client, transport),
   );
 }

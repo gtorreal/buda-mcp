@@ -219,7 +219,11 @@ export async function handlePlaceBatchOrders(
   };
 }
 
-export function register(server: McpServer, client: BudaClient): void {
+export function register(
+  server: McpServer,
+  client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
+): void {
   server.tool(
     toolSchema.name,
     toolSchema.description,
@@ -244,6 +248,6 @@ export function register(server: McpServer, client: BudaClient): void {
           "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute.",
         ),
     },
-    (args) => handlePlaceBatchOrders(args, client),
+    (args) => handlePlaceBatchOrders(args, client, transport),
   );
 }

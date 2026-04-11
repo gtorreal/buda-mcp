@@ -1,6 +1,6 @@
-# Publish Checklist — buda-mcp v1.5.2
+# Publish Checklist — buda-mcp v1.5.3
 
-Steps to publish `v1.5.2` to npm, the MCP registry, and notify community directories.
+Steps to publish `v1.5.3` to npm, the MCP registry, and notify community directories.
 
 ---
 
@@ -8,7 +8,7 @@ Steps to publish `v1.5.2` to npm, the MCP registry, and notify community directo
 
 ```bash
 # Confirm version
-node -e "console.log(require('./package.json').version)"  # should print 1.5.2
+node -e "console.log(require('./package.json').version)"  # should print 1.5.3
 
 # Build and test
 npm run build
@@ -37,9 +37,9 @@ Verify: https://www.npmjs.com/package/@guiie/buda-mcp
 
 ## 3. GitHub release
 
-Tag and release already created via `gh release create v1.5.2`. Verify at:
+Tag and release already created via `gh release create v1.5.3`. Verify at:
 
-https://github.com/gtorreal/buda-mcp/releases/tag/v1.5.2
+https://github.com/gtorreal/buda-mcp/releases/tag/v1.5.3
 
 ---
 
@@ -64,23 +64,18 @@ Verify: https://smithery.ai/server/@guiie/buda-mcp
 **Email/message template:**
 
 ```
-Subject: [Update] buda-mcp v1.5.2 — Security hardening (second pass)
+Subject: [Update] buda-mcp v1.5.3 — Security hardening (third pass)
 
 Hi mcp.so team,
 
-I've released v1.5.2 of buda-mcp (@guiie/buda-mcp on npm).
+I've released v1.5.3 of buda-mcp (@guiie/buda-mcp on npm).
 
 Key changes (security hardening, no new tools):
-- Constant-time token comparison (timing-safe Bearer token auth)
-- Strict environment variable validation (PORT, MCP_RATE_LIMIT) with safe exit on bad config
-- MCP_AUTH_TOKEN entropy warning (< 32 chars)
-- trust proxy support for correct client IP detection behind reverse proxies
-- Audit logging for all 11 destructive tool handlers (structured JSON to stderr)
-- Dead man's switch: renew/disarm also blocked on HTTP transport
-- validateCurrency() added to compare_markets tool
-- Stronger BOLT-11 regex validation in lightning_withdrawal
-- Internal API paths redacted from all error responses (31 tool handlers)
-- 28 new unit tests (total now 184)
+- Upstream API errors no longer forwarded to MCP clients (generic messages only, detail logged server-side)
+- Audit log transport field corrected for HTTP (9 handlers previously showed "stdio" for HTTP traffic)
+- HTTP security headers via helmet (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, etc.)
+- Request body size limit enforced (10kb) on /mcp endpoint
+- Rate limiting extended to /health and /.well-known/mcp/server-card.json endpoints
 
 Links:
 - npm: https://www.npmjs.com/package/@guiie/buda-mcp
@@ -99,24 +94,22 @@ Thank you!
 **Message template:**
 
 ```
-Subject: [Update] buda-mcp v1.5.2
+Subject: [Update] buda-mcp v1.5.3
 
 Hi Glama team,
 
-buda-mcp has been updated to v1.5.2.
+buda-mcp has been updated to v1.5.3.
 
 Package: @guiie/buda-mcp (npm)
 Registry: io.github.gtorreal/buda-mcp (MCP Registry)
-Version: 1.5.2
+Version: 1.5.3
 
-Changes (security hardening, second pass):
-- Constant-time token comparison (timing-safe auth)
-- Strict env var validation (PORT, MCP_RATE_LIMIT)
-- Audit logging for all destructive handlers
-- Dead man's switch: renew/disarm also blocked on HTTP
-- validateCurrency() in compare_markets
-- Stronger BOLT-11 regex
-- Internal paths redacted from error responses
+Changes (security hardening, third pass):
+- Upstream API errors no longer forwarded to MCP clients
+- Audit log transport field corrected for HTTP (9 handlers)
+- HTTP security headers via helmet
+- Request body size limit (10kb) on /mcp endpoint
+- Rate limiting on /health and server-card endpoints
 - 184 unit tests
 
 Quick start:
@@ -132,22 +125,42 @@ Thank you!
 
 ## 8. Post-publish verification
 
-- [ ] `npx @guiie/buda-mcp@1.5.2` starts successfully
-- [ ] `npm info @guiie/buda-mcp version` returns `1.5.2`
-- [ ] GitHub release tag `v1.5.2` is visible
-- [ ] MCP Registry entry reflects v1.5.2
+- [ ] `npx @guiie/buda-mcp@1.5.3` starts successfully
+- [ ] `npm info @guiie/buda-mcp version` returns `1.5.3`
+- [ ] GitHub release tag `v1.5.3` is visible
+- [ ] MCP Registry entry reflects v1.5.3
 - [ ] Smithery server card lists all tools
-- [ ] `GET /health` returns `"version":"1.5.2"` on Railway deployment
-- [ ] HTTP server exits if `BUDA_API_KEY` set but `MCP_AUTH_TOKEN` is absent
-- [ ] `create_withdrawal` rejects a truncated BTC address with `INVALID_ADDRESS`
-- [ ] `lightning_withdrawal` rejects a non-BOLT11 string with `INVALID_INVOICE`
-- [ ] `place_batch_orders` with `max_notional` rejects over-cap batch before API call
-- [ ] `schedule_cancel_all` via HTTP returns `TRANSPORT_NOT_SUPPORTED`
-- [ ] `renew_cancel_timer` via HTTP returns `TRANSPORT_NOT_SUPPORTED`
-- [ ] Error responses do NOT include internal `path` field
-- [ ] Audit events appear in stderr as JSON with `audit: true`
+- [ ] `GET /health` returns `"version":"1.5.3"` on Railway deployment
+- [ ] `GET /health` responds with `X-Content-Type-Options: nosniff` header (helmet active)
+- [ ] `GET /health` rate-limited at 60 req/min
+- [ ] Error responses from the MCP server show generic message (not raw Buda API detail)
+- [ ] Audit log shows `"transport":"http"` for HTTP-triggered destructive tools
+- [ ] Pending: manually apply CI binary pinning to `publish.yml` (see CHANGELOG v1.5.3)
 - [ ] mcp.so listing updated
 - [ ] Glama.ai listing updated
+
+---
+
+---
+
+## 9. Pending manual fix — CI binary pinning
+
+Edit `.github/workflows/publish.yml`, replace the `Install mcp-publisher` step with:
+
+```yaml
+- name: Install mcp-publisher
+  env:
+    MCP_PUBLISHER_VERSION: "v1.5.0"
+    MCP_PUBLISHER_SHA256: "79bbb73ba048c5906034f73ef6286d7763bd53cf368ea0b358fc593ed360cbd5"
+  run: |
+    curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" \
+      -o mcp-publisher.tar.gz
+    echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum --check
+    tar xz -f mcp-publisher.tar.gz mcp-publisher
+    sudo mv mcp-publisher /usr/local/bin/
+```
+
+SHA256 verified against GitHub release `v1.5.0` on 2026-04-11. Update both values when bumping `mcp-publisher`.
 
 ---
 

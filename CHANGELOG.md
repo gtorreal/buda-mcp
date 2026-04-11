@@ -11,6 +11,32 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.5.3] – 2026-04-11
+
+### Security
+
+- **Upstream API errors no longer forwarded to MCP clients** — `BudaClient.handleResponse` now logs the full Buda API error detail (status, path, message) to `process.stderr` as structured JSON and returns only a generic message to the MCP caller (e.g. `"Buda API error 404 on /path."`). Previously, raw upstream error messages including potential internal details were forwarded directly to clients.
+
+- **Audit log transport field corrected for HTTP** — nine destructive tool handlers (`place_order`, `cancel_order`, `cancel_all_orders`, `cancel_order_by_client_id`, `place_batch_orders`, `create_withdrawal`, `lightning_withdrawal`, `create_receive_address`, `quote_remittance`, `accept_remittance_quote`) now correctly log `transport: "http"` when invoked via the HTTP server. Previously their `register()` functions defaulted to `"stdio"`, making all HTTP audit events appear as stdio traffic.
+
+- **HTTP security headers via `helmet`** — Express HTTP server now applies `helmet()` as the first middleware, adding `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `X-DNS-Prefetch-Control`, `X-Download-Options`, and removing `X-Powered-By`.
+
+- **Request body size limit** — `express.json()` now enforces an explicit `limit: "10kb"` on the `/mcp` endpoint, reducing the memory/CPU surface for oversized body attacks in combination with the existing rate limiter.
+
+- **Rate limiting extended to `/health` and `/.well-known/mcp/server-card.json`** — a `staticRateLimiter` (60 req/min) now protects these endpoints, which previously had no throttling. Sufficient for all legitimate uptime monitors and Smithery discovery.
+
+- **`trust proxy` topology documented** — added inline comment to `app.set("trust proxy", 1)` explaining the single-hop assumption (Railway), the impact on `req.ip` and `express-rate-limit` client IP detection, and the action required if an additional proxy layer is added.
+
+### Pending (manual)
+
+- **CI binary pinning** — `publish.yml` should pin `mcp-publisher` to a fixed version with SHA256 verification instead of downloading `releases/latest`. Target version: `v1.5.0`, SHA256: `79bbb73ba048c5906034f73ef6286d7763bd53cf368ea0b358fc593ed360cbd5`. See `PUBLISH_CHECKLIST.md` for the exact step.
+
+### Added
+
+- `helmet` dependency (v8.x) — HTTP security headers middleware.
+
+---
+
 ## [1.5.2] – 2026-04-11
 
 ### Security

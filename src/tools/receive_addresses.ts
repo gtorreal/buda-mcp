@@ -209,7 +209,11 @@ export async function handleCreateReceiveAddress(
   }
 }
 
-export function register(server: McpServer, client: BudaClient): void {
+export function register(
+  server: McpServer,
+  client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
+): void {
   server.tool(
     listReceiveAddressesToolSchema.name,
     listReceiveAddressesToolSchema.description,
@@ -238,6 +242,6 @@ export function register(server: McpServer, client: BudaClient): void {
         .string()
         .describe("Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to generate a new address."),
     },
-    (args) => handleCreateReceiveAddress(args, client),
+    (args) => handleCreateReceiveAddress(args, client, transport),
   );
 }

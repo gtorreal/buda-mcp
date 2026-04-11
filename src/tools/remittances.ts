@@ -280,7 +280,11 @@ export async function handleAcceptRemittanceQuote(
   }
 }
 
-export function register(server: McpServer, client: BudaClient): void {
+export function register(
+  server: McpServer,
+  client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
+): void {
   server.tool(
     listRemittancesToolSchema.name,
     listRemittancesToolSchema.description,
@@ -311,7 +315,7 @@ export function register(server: McpServer, client: BudaClient): void {
         .string()
         .describe("Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to create the quote."),
     },
-    (args) => handleQuoteRemittance(args, client),
+    (args) => handleQuoteRemittance(args, client, transport),
   );
 
   server.tool(
@@ -321,6 +325,6 @@ export function register(server: McpServer, client: BudaClient): void {
       id: z.number().int().positive().describe("The numeric ID of the remittance quote to accept."),
       confirmation_token: z.string().describe("Must be 'CONFIRM' to proceed. Any other value aborts."),
     },
-    (args) => handleAcceptRemittanceQuote(args, client),
+    (args) => handleAcceptRemittanceQuote(args, client, transport),
   );
 }

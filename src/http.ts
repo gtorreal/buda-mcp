@@ -1,4 +1,5 @@
 import express from "express";
+import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -140,22 +141,22 @@ function createServer(): McpServer {
   if (authEnabled) {
     balances.register(server, client);
     orders.register(server, client);
-    placeOrder.register(server, client);
-    cancelOrder.register(server, client);
+    placeOrder.register(server, client, "http");
+    cancelOrder.register(server, client, "http");
     deadMansSwitch.register(server, client, "http");
     account.register(server, client);
     balance.register(server, client);
     orderLookup.register(server, client);
     networkFees.register(server, client);
     deposits.register(server, client);
-    withdrawals.register(server, client);
-    receiveAddresses.register(server, client);
-    remittances.register(server, client);
+    withdrawals.register(server, client, "http");
+    receiveAddresses.register(server, client, "http");
+    remittances.register(server, client, "http");
     remittanceRecipients.register(server, client);
-    cancelAllOrders.register(server, client);
-    cancelOrderByClientId.register(server, client);
-    batchOrders.register(server, client);
-    lightning.register(server, client);
+    cancelAllOrders.register(server, client, "http");
+    cancelOrderByClientId.register(server, client, "http");
+    batchOrders.register(server, client, "http");
+    lightning.register(server, client, "http");
   }
 
   // MCP Resources
@@ -231,10 +232,12 @@ function createServer(): McpServer {
 }
 
 const app = express();
-// Required for correct client IP detection behind Railway's reverse proxy.
-// Without this, express-rate-limit sees the proxy IP instead of the real client.
+app.use(helmet());
+// trust proxy: 1 = trust exactly one hop (Railway's reverse proxy).
+// If Cloudflare or another proxy is added in front, increment this value.
+// Affects: req.ip and express-rate-limit client IP detection.
 app.set("trust proxy", 1);
-app.use(express.json());
+app.use(express.json({ limit: "10kb" }));
 
 const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
 
@@ -269,6 +272,14 @@ const mcpRateLimiter = rateLimit({
   message: { error: "Too many requests. Retry after 60 seconds.", code: "RATE_LIMITED" },
 });
 
+const staticRateLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests.", code: "RATE_LIMITED" },
+});
+
 function mcpAuthMiddleware(
   req: express.Request,
   res: express.Response,
@@ -287,7 +298,7 @@ function mcpAuthMiddleware(
 }
 
 // Health check for Railway / uptime monitors
-app.get("/health", (_req, res) => {
+app.get("/health", staticRateLimiter, (_req, res) => {
   res.json({
     status: "ok",
     server: "buda-mcp",
@@ -298,7 +309,7 @@ app.get("/health", (_req, res) => {
 
 // Smithery static server card — assembled programmatically from tool definitions.
 // Adding a new tool only requires exporting its toolSchema; this handler needs no changes.
-app.get("/.well-known/mcp/server-card.json", (_req, res) => {
+app.get("/.well-known/mcp/server-card.json", staticRateLimiter, (_req, res) => {
   res.json({
     serverInfo: { name: "buda-mcp", version: VERSION },
     authentication: { required: authEnabled },

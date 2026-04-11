@@ -204,7 +204,11 @@ export async function handleCreateLightningInvoice(
   }
 }
 
-export function register(server: McpServer, client: BudaClient): void {
+export function register(
+  server: McpServer,
+  client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
+): void {
   server.tool(
     lightningWithdrawalToolSchema.name,
     lightningWithdrawalToolSchema.description,
@@ -220,7 +224,7 @@ export function register(server: McpServer, client: BudaClient): void {
             "Any other value will reject the request without paying.",
         ),
     },
-    (args) => handleLightningWithdrawal(args, client),
+    (args) => handleLightningWithdrawal(args, client, transport),
   );
 
   server.tool(

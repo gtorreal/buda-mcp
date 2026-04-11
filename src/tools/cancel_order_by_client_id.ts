@@ -112,7 +112,11 @@ export async function handleCancelOrderByClientId(
   }
 }
 
-export function register(server: McpServer, client: BudaClient): void {
+export function register(
+  server: McpServer,
+  client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
+): void {
   server.tool(
     toolSchema.name,
     toolSchema.description,
@@ -128,6 +132,6 @@ export function register(server: McpServer, client: BudaClient): void {
             "Any other value will reject the request without canceling.",
         ),
     },
-    (args) => handleCancelOrderByClientId(args, client),
+    (args) => handleCancelOrderByClientId(args, client, transport),
   );
 }
