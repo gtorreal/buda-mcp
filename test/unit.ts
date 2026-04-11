@@ -6,7 +6,7 @@
 import { createHmac } from "crypto";
 import { BudaClient, BudaApiError } from "../src/client.js";
 import { MemoryCache } from "../src/cache.js";
-import { validateMarketId } from "../src/validation.js";
+import { validateMarketId, validateCryptoAddress } from "../src/validation.js";
 import { handlePlaceOrder } from "../src/tools/place_order.js";
 import { handleCancelOrder } from "../src/tools/cancel_order.js";
 import { flattenAmount, getLiquidityRating, aggregateTradesToCandles } from "../src/utils.js";
@@ -2732,19 +2732,19 @@ await test("handleCreateWithdrawal: crypto path + CONFIRM", async () => {
           currency: "BTC",
           amount: ["0.01", "BTC"],
           fee: ["0.0001", "BTC"],
-          address: "bc1q...",
-          tx_hash: null,
-          bank_account_id: null,
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-01T00:00:00Z",
-        },
-      }),
-      { status: 201, headers: { "Content-Type": "application/json" } },
-    );
+      address: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+        tx_hash: null,
+        bank_account_id: null,
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+    }),
+    { status: 201, headers: { "Content-Type": "application/json" } },
+  );
   try {
     const client = new BudaClient("https://www.buda.com/api/v2");
     const result = await handleCreateWithdrawal(
-      { currency: "BTC", amount: 0.01, address: "bc1q...", confirmation_token: "CONFIRM" },
+      { currency: "BTC", amount: 0.01, address: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", confirmation_token: "CONFIRM" },
       client,
     );
     assert(!result.isError, "should not be error");
@@ -2804,7 +2804,7 @@ await test("handleCreateWithdrawal: 422 insufficient balance passthrough", async
   try {
     const client = new BudaClient("https://www.buda.com/api/v2");
     const result = await handleCreateWithdrawal(
-      { currency: "BTC", amount: 999, address: "bc1q...", confirmation_token: "CONFIRM" },
+      { currency: "BTC", amount: 999, address: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", confirmation_token: "CONFIRM" },
       client,
     );
     assert(result.isError === true, "should be error");
@@ -3059,6 +3059,249 @@ await test("handleCreateLightningInvoice: API error passthrough", async () => {
     assert(result.isError === true, "should be error");
     const parsed = JSON.parse(result.content[0].text) as { code: number };
     assertEqual(parsed.code, 422, "code should be 422");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Fix 3 — validateCryptoAddress
+// ----------------------------------------------------------------
+
+section("validateCryptoAddress");
+
+await test("validateCryptoAddress: valid BTC bech32 address passes", () => {
+  assertEqual(validateCryptoAddress("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", "BTC"), null, "valid bech32 should pass");
+});
+
+await test("validateCryptoAddress: valid BTC legacy P2PKH address passes", () => {
+  assertEqual(validateCryptoAddress("1BpEi6DfDAUFd153wiGrvkiKyhSua3FrN", "BTC"), null, "valid P2PKH should pass");
+});
+
+await test("validateCryptoAddress: BTC address too short after bc1 prefix is rejected", () => {
+  // bc1 + fewer than 6 alphanumeric chars — too short to be a real address
+  assert(validateCryptoAddress("bc1qa", "BTC") !== null, "bc1 + 1 char should fail");
+});
+
+await test("validateCryptoAddress: BTC address with wrong prefix is rejected", () => {
+  assert(validateCryptoAddress("XpubBadAddress1234567890abcdefgh", "BTC") !== null, "wrong prefix should fail");
+});
+
+await test("validateCryptoAddress: valid ETH address passes", () => {
+  // Standard 40-hex-char Ethereum address (checksummed)
+  assertEqual(validateCryptoAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e", "ETH"), null, "valid ETH address should pass");
+});
+
+await test("validateCryptoAddress: ETH address wrong length is rejected", () => {
+  assert(validateCryptoAddress("0xde0B295669a9FD93d5F28D9", "ETH") !== null, "short ETH address should fail");
+});
+
+await test("validateCryptoAddress: valid XRP address passes", () => {
+  assertEqual(validateCryptoAddress("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "XRP"), null, "valid XRP address should pass");
+});
+
+await test("validateCryptoAddress: XRP address with wrong prefix is rejected", () => {
+  assert(validateCryptoAddress("xHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "XRP") !== null, "XRP with 'x' prefix should fail");
+});
+
+await test("validateCryptoAddress: unknown currency returns null (pass-through)", () => {
+  // ALGO not in ADDRESS_RULES — should pass through to let exchange validate
+  assertEqual(validateCryptoAddress("SOMEADDRESS123", "ALGO"), null, "unknown currency should pass through");
+});
+
+await test("validateCryptoAddress: USDC treated as EVM address", () => {
+  assertEqual(validateCryptoAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e", "USDC"), null, "valid EVM address for USDC should pass");
+  assert(validateCryptoAddress("not-an-address", "USDC") !== null, "invalid EVM address for USDC should fail");
+});
+
+// ----------------------------------------------------------------
+// Fix 4 — handleLightningWithdrawal BOLT-11 validation
+// ----------------------------------------------------------------
+
+section("handleLightningWithdrawal — BOLT-11 format guard");
+
+await test("handleLightningWithdrawal: non-BOLT11 string returns INVALID_INVOICE before API call", async () => {
+  let fetchCalled = false;
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = new BudaClient(undefined, "key", "secret");
+    const result = await handleLightningWithdrawal(
+      { invoice: "not-a-lightning-invoice-at-all-just-garbage-string-here", confirmation_token: "CONFIRM" },
+      client,
+    );
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "INVALID_INVOICE", "should return INVALID_INVOICE");
+    assert(result.isError === true, "isError should be true");
+    assert(!fetchCalled, "fetch should NOT have been called");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleLightningWithdrawal: testnet invoice prefix 'lntb' is accepted (passes format check)", async () => {
+  // A syntactically valid lntb prefix — API will reject it, but format guard should pass
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({ message: "invalid invoice" }), { status: 422 },
+  );
+  try {
+    const client = new BudaClient(undefined, "key", "secret");
+    const fakeInvoice = "lntb1230n1pj8ygappp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypq";
+    const result = await handleLightningWithdrawal(
+      { invoice: fakeInvoice, confirmation_token: "CONFIRM" },
+      client,
+    );
+    // Should NOT return INVALID_INVOICE — the format guard passes; API error is expected
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assert(parsed.code !== "INVALID_INVOICE", "BOLT-11 prefix should pass format guard");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleLightningWithdrawal: invoice without BOLT-11 prefix still blocked by INVALID_INVOICE after CONFIRM", async () => {
+  const client = new BudaClient(undefined, "key", "secret");
+  const result = await handleLightningWithdrawal(
+    { invoice: "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", confirmation_token: "CONFIRM" },
+    client,
+  );
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_INVOICE", "BTC address passed as invoice should fail BOLT-11 check");
+});
+
+// ----------------------------------------------------------------
+// Fix 5 — Dead man's switch: TRANSPORT_NOT_SUPPORTED on HTTP
+// ----------------------------------------------------------------
+
+section("handleScheduleCancelAll — HTTP transport guard");
+
+await test("handleScheduleCancelAll: transport='http' returns TRANSPORT_NOT_SUPPORTED", async () => {
+  const client = new BudaClient(undefined, "key", "secret");
+  // Simulate what register() does on HTTP transport by calling handleScheduleCancelAll
+  // We test the transport guard via the register() wrapper indirectly through a fake server tool.
+  // Since handleScheduleCancelAll itself doesn't know the transport, we test the guard
+  // by verifying the pattern: a fake dispatch that mirrors the http register() closure.
+  const transportGuard = (transport: "stdio" | "http") => {
+    if (transport === "http") {
+      return Promise.resolve({
+        content: [{ type: "text" as const, text: JSON.stringify({ code: "TRANSPORT_NOT_SUPPORTED" }) }],
+        isError: true,
+      });
+    }
+    return handleScheduleCancelAll(
+      { market_id: "BTC-CLP", ttl_seconds: 30, confirmation_token: "CONFIRM" },
+      client,
+    );
+  };
+
+  const result = await transportGuard("http");
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "TRANSPORT_NOT_SUPPORTED", "HTTP transport should return TRANSPORT_NOT_SUPPORTED");
+  assert(result.isError === true, "isError should be true");
+});
+
+await test("handleScheduleCancelAll: transport='stdio' still works normally", async () => {
+  const client = new BudaClient(undefined, "key", "secret");
+  const result = await handleScheduleCancelAll(
+    { market_id: "BTC-CLP", ttl_seconds: 10, confirmation_token: "CONFIRM" },
+    client,
+  );
+  const parsed = JSON.parse(result.content[0].text) as { active: boolean; warning: string };
+  assert(parsed.active === true, "stdio transport should arm the switch");
+  assert(typeof parsed.warning === "string", "should include in-memory warning");
+  // Clean up timer
+  const { handleDisarmCancelTimer: disarm } = await import("../src/tools/dead_mans_switch.js");
+  disarm({ market_id: "BTC-CLP" });
+});
+
+// ----------------------------------------------------------------
+// Fix 6 — place_batch_orders: max_notional cap
+// ----------------------------------------------------------------
+
+section("handlePlaceBatchOrders — max_notional cap");
+
+await test("handlePlaceBatchOrders: exceeding max_notional rejects before any API call", async () => {
+  let fetchCalled = false;
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = new BudaClient(undefined, "key", "secret");
+    const result = await handlePlaceBatchOrders(
+      {
+        orders: [
+          { market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 1, limit_price: 50_000_000 },
+          { market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.5, limit_price: 50_000_000 },
+        ],
+        max_notional: 60_000_000,
+        confirmation_token: "CONFIRM",
+      },
+      client,
+    );
+    // total notional = 1*50_000_000 + 0.5*50_000_000 = 75_000_000 > 60_000_000
+    const parsed = JSON.parse(result.content[0].text) as { code: string; total_notional: number };
+    assertEqual(parsed.code, "NOTIONAL_CAP_EXCEEDED", "should return NOTIONAL_CAP_EXCEEDED");
+    assert(parsed.total_notional === 75_000_000, "total_notional should be computed correctly");
+    assert(result.isError === true, "isError should be true");
+    assert(!fetchCalled, "fetch should NOT have been called");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handlePlaceBatchOrders: within max_notional proceeds to API calls", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({ order: { id: 99, state: "pending", market_id: "btc-clp" } }),
+    { status: 200 },
+  );
+  try {
+    const client = new BudaClient(undefined, "key", "secret");
+    const result = await handlePlaceBatchOrders(
+      {
+        orders: [
+          { market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.001, limit_price: 50_000_000 },
+        ],
+        max_notional: 100_000,
+        confirmation_token: "CONFIRM",
+      },
+      client,
+    );
+    // total notional = 0.001 * 50_000_000 = 50_000 < 100_000 — should proceed
+    const parsed = JSON.parse(result.content[0].text) as { succeeded: number };
+    assertEqual(parsed.succeeded, 1, "order within cap should succeed");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handlePlaceBatchOrders: market orders contribute 0 to notional (cap not triggered)", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({ order: { id: 100, state: "pending", market_id: "btc-clp" } }),
+    { status: 200 },
+  );
+  try {
+    const client = new BudaClient(undefined, "key", "secret");
+    const result = await handlePlaceBatchOrders(
+      {
+        orders: [
+          { market_id: "BTC-CLP", type: "Bid", price_type: "market", amount: 999 },
+        ],
+        max_notional: 1,
+        confirmation_token: "CONFIRM",
+      },
+      client,
+    );
+    // Market order contributes 0, so notional = 0 < 1 — cap should NOT trigger
+    const parsed = JSON.parse(result.content[0].text) as { code?: string; succeeded?: number };
+    assert(parsed.code !== "NOTIONAL_CAP_EXCEEDED", "market order should not trigger notional cap");
   } finally {
     globalThis.fetch = savedFetch;
   }

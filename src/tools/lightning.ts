@@ -91,6 +91,22 @@ export async function handleLightningWithdrawal(
     };
   }
 
+  const BOLT11_RE = /^ln(bc|tb|bcrt)\d/i;
+  if (!BOLT11_RE.test(invoice)) {
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          error:
+            "Invalid Lightning invoice format. " +
+            "Expected a BOLT-11 string starting with 'lnbc', 'lntb', or 'lnbcrt'.",
+          code: "INVALID_INVOICE",
+        }),
+      }],
+      isError: true,
+    };
+  }
+
   try {
     const data = await client.post<LightningWithdrawalResponse>(
       `/reserves/ln-btc/withdrawals`,
@@ -192,7 +208,7 @@ export function register(server: McpServer, client: BudaClient): void {
     {
       invoice: z
         .string()
-        .min(1)
+        .min(50)
         .describe("BOLT-11 Lightning invoice string (starts with 'lnbc', 'lntb', etc.)."),
       confirmation_token: z
         .string()

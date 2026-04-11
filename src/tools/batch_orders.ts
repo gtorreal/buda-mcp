@@ -10,6 +10,7 @@ export const toolSchema = {
     "Place multiple orders sequentially on Buda.com (up to 20). " +
     "All orders are pre-validated before any API call — a validation failure stops execution with zero orders placed. " +
     "Partial API failures do NOT roll back already-placed orders. " +
+    "Use max_notional to cap total exposure (computed as sum of amount × limit_price for limit orders; market orders contribute 0). " +
     "IMPORTANT: Pass confirmation_token='CONFIRM' to execute. " +
     "Requires BUDA_API_KEY and BUDA_API_SECRET.",
   inputSchema: {
@@ -29,6 +30,13 @@ export const toolSchema = {
           },
           required: ["market_id", "type", "price_type", "amount"],
         },
+      },
+      max_notional: {
+        type: "number",
+        description:
+          "Optional spending cap: total notional (sum of amount × limit_price for limit orders). " +
+          "Batch is rejected before any API call if the sum exceeds this value. " +
+          "Market orders contribute 0 to the notional since their execution price is unknown.",
       },
       confirmation_token: {
         type: "string",
@@ -61,6 +69,7 @@ type BatchResult = {
 
 type BatchOrdersArgs = {
   orders: SingleOrderInput[];
+  max_notional?: number;
   confirmation_token: string;
 };
 
@@ -68,7 +77,7 @@ export async function handlePlaceBatchOrders(
   args: BatchOrdersArgs,
   client: BudaClient,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
-  const { orders, confirmation_token } = args;
+  const { orders, max_notional, confirmation_token } = args;
 
   if (confirmation_token !== "CONFIRM") {
     return {
@@ -119,6 +128,27 @@ export async function handlePlaceBatchOrders(
             }),
           },
         ],
+        isError: true,
+      };
+    }
+  }
+
+  // Notional cap check (limit orders only; market orders have unknown execution price)
+  if (max_notional !== undefined) {
+    const totalNotional = orders.reduce((sum, o) => {
+      return sum + (o.price_type === "limit" && o.limit_price ? o.amount * o.limit_price : 0);
+    }, 0);
+    if (totalNotional > max_notional) {
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            error: `Total notional ${totalNotional} exceeds max_notional cap of ${max_notional}. No orders were placed.`,
+            code: "NOTIONAL_CAP_EXCEEDED",
+            total_notional: totalNotional,
+            max_notional,
+          }),
+        }],
         isError: true,
       };
     }
@@ -188,6 +218,15 @@ export function register(server: McpServer, client: BudaClient): void {
         .min(1)
         .max(20)
         .describe("Array of 1–20 orders to place."),
+      max_notional: z
+        .number()
+        .positive()
+        .optional()
+        .describe(
+          "Optional spending cap: total notional (sum of amount × limit_price for limit orders). " +
+          "Batch is rejected before any API call if the sum exceeds this value. " +
+          "Market orders contribute 0 to the notional since their execution price is unknown.",
+        ),
       confirmation_token: z
         .string()
         .describe(

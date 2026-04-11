@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { BudaClient } from "./client.js";
@@ -134,7 +135,7 @@ function createServer(): McpServer {
     orders.register(server, client);
     placeOrder.register(server, client);
     cancelOrder.register(server, client);
-    deadMansSwitch.register(server, client);
+    deadMansSwitch.register(server, client, "http");
     account.register(server, client);
     balance.register(server, client);
     orderLookup.register(server, client);
@@ -227,6 +228,23 @@ app.use(express.json());
 
 const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
 
+if (authEnabled && !MCP_AUTH_TOKEN) {
+  console.error(
+    "[buda-mcp] FATAL: BUDA_API_KEY/BUDA_API_SECRET are set but MCP_AUTH_TOKEN is not.\n" +
+    "  The /mcp endpoint would be publicly accessible with full account access.\n" +
+    "  Set MCP_AUTH_TOKEN to a long random secret, or run in stdio mode instead.",
+  );
+  process.exit(1);
+}
+
+const mcpRateLimiter = rateLimit({
+  windowMs: 60_000,
+  max: parseInt(process.env.MCP_RATE_LIMIT ?? "120", 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Retry after 60 seconds.", code: "RATE_LIMITED" },
+});
+
 function mcpAuthMiddleware(
   req: express.Request,
   res: express.Response,
@@ -271,7 +289,7 @@ app.get("/.well-known/mcp/server-card.json", (_req, res) => {
 });
 
 // Stateless StreamableHTTP — new server instance per request (no session state needed)
-app.post("/mcp", mcpAuthMiddleware, async (req, res) => {
+app.post("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
@@ -286,7 +304,7 @@ app.post("/mcp", mcpAuthMiddleware, async (req, res) => {
 });
 
 // SSE upgrade for clients that prefer streaming
-app.get("/mcp", mcpAuthMiddleware, async (req, res) => {
+app.get("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });

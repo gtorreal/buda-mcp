@@ -9,6 +9,20 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+
+- **HTTP startup guard for missing `MCP_AUTH_TOKEN`** — when `BUDA_API_KEY`/`BUDA_API_SECRET` are present but `MCP_AUTH_TOKEN` is not set, the HTTP server now exits with a `FATAL` error at startup instead of silently leaving the `/mcp` endpoint publicly accessible. This closes the opt-in footgun where operators could deploy credentials without a protecting token.
+
+- **Rate limiting on `/mcp`** — `express-rate-limit` middleware (120 req/min per IP by default) is applied to `POST /mcp` and `GET /mcp` before auth, preventing looping agents from saturating the Buda API. Configurable via the `MCP_RATE_LIMIT` environment variable.
+
+- **Crypto address format validation in `create_withdrawal`** — the `address` field is now validated against per-currency regex rules for BTC, ETH, USDC, USDT, LTC, BCH, and XRP before any API call. Unknown currencies pass through to the exchange. Returns `INVALID_ADDRESS` on failure. Tool description now explicitly warns that crypto withdrawals are irreversible.
+
+- **BOLT-11 invoice format validation in `lightning_withdrawal`** — the `invoice` field is now checked against a prefix regex (`/^ln(bc|tb|bcrt)\d/i`) before the API call, rejecting non-invoice strings (e.g. a Bitcoin address pasted by mistake). Zod minimum length tightened from 1 to 50 characters.
+
+- **Dead man's switch blocked on HTTP transport** — `schedule_cancel_all` now returns `TRANSPORT_NOT_SUPPORTED` when called via the HTTP server, where a process restart (deploy, crash, autoscale) silently drops all in-memory timers. `renew_cancel_timer` and `disarm_cancel_timer` remain callable. The `register()` function accepts a new `transport: "stdio" | "http"` parameter (default `"stdio"`).
+
+- **Batch orders optional notional cap** — `place_batch_orders` now accepts an optional `max_notional` parameter. If the sum of `amount × limit_price` across all limit orders exceeds the cap, the entire batch is rejected before any API call with `NOTIONAL_CAP_EXCEEDED`. Market orders contribute 0 (execution price unknown).
+
 ### Fixed
 
 - **Security: path traversal in MCP resource handlers** — `buda://ticker/{market}` and `buda://summary/{market}` resource handlers now call `validateMarketId` before interpolating the parameter into the API URL, preventing path traversal to unintended Buda API endpoints.

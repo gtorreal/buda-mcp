@@ -653,7 +653,17 @@ The `dist/http.js` entrypoint runs an Express server with:
 - `GET /health` — health check (`{ status, version, auth_mode }`)
 - `GET /.well-known/mcp/server-card.json` — Smithery-compatible static tool manifest
 
-Set `PORT` environment variable to override the default `3000`.
+### Environment variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `PORT` | No | HTTP listen port (default: `3000`) |
+| `MCP_AUTH_TOKEN` | **Yes, when credentials are set** | Bearer token that all `/mcp` requests must include (`Authorization: Bearer <token>`). If `BUDA_API_KEY`/`BUDA_API_SECRET` are set but this is absent, the server refuses to start. |
+| `MCP_RATE_LIMIT` | No | Max requests per IP per minute on `/mcp` (default: `120`) |
+| `BUDA_API_KEY` | No | Buda.com API key — enables auth-gated tools |
+| `BUDA_API_SECRET` | No | Buda.com API secret — required together with `BUDA_API_KEY` |
+
+> **Security:** Never expose the HTTP server publicly without setting `MCP_AUTH_TOKEN`. The server will exit at startup if credentials are present but the token is missing.
 
 ---
 
@@ -664,7 +674,7 @@ src/
   client.ts                   BudaClient (HTTP + HMAC auth + 429 retry)
   cache.ts                    In-memory TTL cache with in-flight deduplication
   types.ts                    TypeScript types for Buda API responses
-  validation.ts               validateMarketId() and validateCurrency()
+  validation.ts               validateMarketId(), validateCurrency(), validateCryptoAddress()
   utils.ts                    flattenAmount(), aggregateTradesToCandles(), getLiquidityRating()
   version.ts                  Single source of truth for version string
   index.ts                    stdio MCP server entrypoint

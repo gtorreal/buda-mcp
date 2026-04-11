@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
-import { validateCurrency } from "../validation.js";
+import { validateCurrency, validateCryptoAddress } from "../validation.js";
 import { flattenAmount } from "../utils.js";
 import type { WithdrawalsResponse, SingleWithdrawalResponse, Withdrawal } from "../types.js";
 
@@ -120,6 +120,7 @@ export const createWithdrawalToolSchema = {
   description:
     "Create a withdrawal on Buda.com. Supports both crypto (address) and fiat (bank_account_id) withdrawals. " +
     "Exactly one of address or bank_account_id must be provided. " +
+    "WARNING: Crypto withdrawals are irreversible — verify the destination address carefully before confirming. " +
     "IMPORTANT: Pass confirmation_token='CONFIRM' to execute. " +
     "Requires BUDA_API_KEY and BUDA_API_SECRET.",
   inputSchema: {
@@ -211,6 +212,16 @@ export async function handleCreateWithdrawal(
       content: [{ type: "text", text: JSON.stringify({ error: validationError, code: "INVALID_CURRENCY" }) }],
       isError: true,
     };
+  }
+
+  if (hasAddress) {
+    const addrError = validateCryptoAddress(address!, currency);
+    if (addrError) {
+      return {
+        content: [{ type: "text", text: JSON.stringify({ error: addrError, code: "INVALID_ADDRESS" }) }],
+        isError: true,
+      };
+    }
   }
 
   try {

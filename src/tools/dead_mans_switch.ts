@@ -284,7 +284,11 @@ export function handleDisarmCancelTimer(
 
 // ---- Registration ----
 
-export function register(server: McpServer, client: BudaClient): void {
+export function register(
+  server: McpServer,
+  client: BudaClient,
+  transport: "stdio" | "http" = "stdio",
+): void {
   server.tool(
     toolSchema.name,
     toolSchema.description,
@@ -302,7 +306,24 @@ export function register(server: McpServer, client: BudaClient): void {
         .string()
         .describe("Must equal exactly 'CONFIRM' (case-sensitive) to arm the switch."),
     },
-    (args) => handleScheduleCancelAll(args, client),
+    (args) => {
+      if (transport === "http") {
+        return Promise.resolve({
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              error:
+                "schedule_cancel_all is not available on the HTTP transport. " +
+                "Timer state is lost on every server restart or deploy. " +
+                "Run buda-mcp in stdio mode on a persistent local process to use this feature.",
+              code: "TRANSPORT_NOT_SUPPORTED",
+            }),
+          }],
+          isError: true,
+        });
+      }
+      return handleScheduleCancelAll(args, client);
+    },
   );
 
   server.tool(
