@@ -1,4 +1,4 @@
-# Publishing checklist
+# Publishing checklist — v1.2.0
 
 Everything that could be automated is already done.
 This file contains only what requires your manual action, in order.
@@ -63,7 +63,7 @@ mcp-publisher login github
 mcp-publisher publish
 ```
 
-You'll see: `✓ Successfully published — io.github.gtorreal/buda-mcp version 1.0.0`
+You'll see: `✓ Successfully published — io.github.gtorreal/buda-mcp version 1.2.0`
 
 ### 2b. Put your MCP Registry token into GitHub Actions (for auto-publish on release)
 
@@ -177,9 +177,9 @@ For the Gemini Extensions marketplace (currently invite-only):
 Once npm token and MCP registry token are set in GitHub Actions secrets (Steps 1c and 2b):
 
 ```bash
-gh release create v1.0.0 \
-  --title "v1.0.0 — Initial release" \
-  --notes "5 public market data tools for Buda.com: get_markets, get_ticker, get_orderbook, get_trades, get_market_volume." \
+gh release create v1.2.0 \
+  --title "v1.2.0 — Input validation, 429 retry, unit tests" \
+  --notes "Input sanitization, 429 Retry-After support, get_price_history limit raised to 1000, 23 unit tests, single version source-of-truth." \
   --latest
 ```
 

@@ -2,13 +2,39 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { MemoryCache } from "../cache.js";
+import { validateMarketId } from "../validation.js";
 import type { TradesResponse } from "../types.js";
+
+export const toolSchema = {
+  name: "get_trades",
+  description:
+    "Get recent trade history for a Buda.com market. Each entry contains " +
+    "[timestamp_ms, amount, price, direction]. Direction is 'buy' or 'sell'.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      market_id: {
+        type: "string",
+        description: "Market ID (e.g. 'BTC-CLP', 'ETH-BTC').",
+      },
+      limit: {
+        type: "number",
+        description: "Number of trades to return (default: 50, max: 100).",
+      },
+      timestamp: {
+        type: "number",
+        description:
+          "Unix timestamp (seconds) to paginate from. Returns trades older than this timestamp.",
+      },
+    },
+    required: ["market_id"],
+  },
+};
 
 export function register(server: McpServer, client: BudaClient, _cache: MemoryCache): void {
   server.tool(
-    "get_trades",
-    "Get recent trade history for a Buda.com market. Each entry contains " +
-      "[timestamp_ms, amount, price, direction]. Direction is 'buy' or 'sell'.",
+    toolSchema.name,
+    toolSchema.description,
     {
       market_id: z
         .string()
@@ -30,6 +56,14 @@ export function register(server: McpServer, client: BudaClient, _cache: MemoryCa
     },
     async ({ market_id, limit, timestamp }) => {
       try {
+        const validationError = validateMarketId(market_id);
+        if (validationError) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: validationError, code: "INVALID_MARKET_ID" }) }],
+            isError: true,
+          };
+        }
+
         const params: Record<string, string | number> = {};
         if (limit !== undefined) params.limit = limit;
         if (timestamp !== undefined) params.timestamp = timestamp;

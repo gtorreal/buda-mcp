@@ -2,13 +2,30 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { MemoryCache, CACHE_TTL } from "../cache.js";
+import { validateMarketId } from "../validation.js";
 import type { TickerResponse } from "../types.js";
+
+export const toolSchema = {
+  name: "get_spread",
+  description:
+    "Calculate the bid/ask spread for a Buda.com market. " +
+    "Returns the best bid, best ask, absolute spread, and spread as a percentage of the ask price.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      market_id: {
+        type: "string",
+        description: "Market ID (e.g. 'BTC-CLP', 'ETH-BTC', 'BTC-COP').",
+      },
+    },
+    required: ["market_id"],
+  },
+};
 
 export function register(server: McpServer, client: BudaClient, cache: MemoryCache): void {
   server.tool(
-    "get_spread",
-    "Calculate the bid/ask spread for a Buda.com market. " +
-      "Returns the best bid, best ask, absolute spread, and spread as a percentage of the ask price.",
+    toolSchema.name,
+    toolSchema.description,
     {
       market_id: z
         .string()
@@ -16,6 +33,14 @@ export function register(server: McpServer, client: BudaClient, cache: MemoryCac
     },
     async ({ market_id }) => {
       try {
+        const validationError = validateMarketId(market_id);
+        if (validationError) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: validationError, code: "INVALID_MARKET_ID" }) }],
+            isError: true,
+          };
+        }
+
         const id = market_id.toLowerCase();
         const data = await cache.getOrFetch<TickerResponse>(
           `ticker:${id}`,

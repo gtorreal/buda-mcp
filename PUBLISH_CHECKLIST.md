@@ -1,6 +1,6 @@
-# Publish Checklist — buda-mcp v1.1.0
+# Publish Checklist — buda-mcp v1.2.0
 
-Steps to publish `v1.1.0` to npm, the MCP registry, and notify community directories.
+Steps to publish `v1.2.0` to npm, the MCP registry, and notify community directories.
 
 ---
 
@@ -8,11 +8,14 @@ Steps to publish `v1.1.0` to npm, the MCP registry, and notify community directo
 
 ```bash
 # Confirm version
-node -e "console.log(require('./package.json').version)"  # should print 1.1.0
+node -e "console.log(require('./package.json').version)"  # should print 1.2.0
 
 # Build and test
 npm run build
 npm test
+
+# Sync server.json version (already done, but run again to confirm)
+npm run sync-version
 
 # Verify no credentials are logged (audit)
 grep -r "apiKey\|apiSecret\|BUDA_API" dist/ --include="*.js" | grep -v "process.env\|hasAuth\|X-SBTC-APIKEY\|authHeaders\|constructor"
@@ -36,17 +39,18 @@ Verify: https://www.npmjs.com/package/@guiie/buda-mcp
 
 ```bash
 git add -A
-git commit -m "chore: release v1.1.0
+git commit -m "chore: release v1.2.0
 
-- 3 new public tools: get_spread, compare_markets, get_price_history
-- HMAC-SHA384 auth scaffold (BUDA_API_KEY / BUDA_API_SECRET)
-- 4 auth-gated tools: get_balances, get_orders, place_order, cancel_order
-- TTL caching (markets 60s, tickers 5s, orderbooks 3s)
-- MCP Resources: buda://markets, buda://ticker/{market}
-- Structured error responses for all tools
-- Updated README, marketplace files, CHANGELOG"
+- Single version source-of-truth via src/version.ts (no more hardcoded strings)
+- Programmatic server-card in http.ts (toolSchema exported per tool)
+- .env.example with documented BUDA_API_KEY / BUDA_API_SECRET
+- Input sanitization: validateMarketId regex on all market_id inputs
+- 429 retry with Retry-After (seconds, per RFC 7231), default 1s
+- get_price_history: limit raised to 1000, UTC bucketing documented
+- 23 unit tests: HMAC signing, cache dedup, confirmation guard, sanitization, 429 retry
+- Integration tests: graceful skip when Buda API is unreachable"
 
-git tag v1.1.0
+git tag v1.2.0
 git push origin main --tags
 ```
 
@@ -57,25 +61,27 @@ Then create a GitHub Release from the tag with the following release notes:
 **Release notes template (GitHub):**
 
 ```
-## buda-mcp v1.1.0
+## buda-mcp v1.2.0
 
 ### What's new
 
-**3 new public tools**
-- `get_spread` — bid/ask spread (absolute and %) for any market
-- `compare_markets` — side-by-side ticker data for a base currency across all quote currencies
-- `get_price_history` — OHLCV candles derived from recent trades (1h / 4h / 1d)
+**Bug fixes & maintenance**
+- Single version source-of-truth: all version strings now read from `package.json` at startup via `src/version.ts` — no more drift between files
+- `http.ts` server-card assembled programmatically from exported `toolSchema` constants — adding a tool no longer requires touching `http.ts`
 
-**HMAC auth scaffold**
-- Set `BUDA_API_KEY` + `BUDA_API_SECRET` to unlock 4 authenticated tools
-- `get_balances`, `get_orders`, `place_order`, `cancel_order`
-- Public-only mode unchanged when no credentials are set
+**Security / reliability**
+- Input sanitization: all `market_id` inputs validated against `/^[A-Z0-9]{2,10}-[A-Z0-9]{2,10}$/i` before URL interpolation — rejects path traversal and malformed IDs with structured errors
+- 429 retry: `BudaClient` retries once on rate-limit responses, honoring the `Retry-After` header (seconds, per RFC 7231; defaults to 1s if absent). Double-429 throws `BudaApiError` with `retryAfterMs`.
 
-**Platform improvements**
-- TTL caching: markets (60s), tickers (5s), order books (3s)
-- MCP Resources: `buda://markets` and `buda://ticker/{market}`
-- Structured `isError: true` responses for all tools
-- Updated README with npx quickstart and per-tool examples
+**DX improvements**
+- `.env.example` added for easy credential setup
+- `get_price_history` limit raised from 100 to 1000 trades; UTC bucketing documented prominently
+- `npm run sync-version` syncs `server.json` from `package.json` automatically
+
+**Test suite**
+- 23 new unit tests (no live API needed): HMAC signing exactness, cache deduplication, confirmation_token guards, input sanitization, 429 retry behavior
+- Integration tests skip gracefully when Buda API is unreachable (CI-friendly)
+- New scripts: `npm run test:unit`, `npm run test:integration`
 
 ```bash
 npx @guiie/buda-mcp
@@ -86,16 +92,13 @@ npx @guiie/buda-mcp
 
 ## 4. MCP Registry update
 
-The GitHub Actions workflow (`.github/workflows/publish.yml`) runs automatically on GitHub release. It runs `mcp publish` via `mcp-publisher`. Verify the registry entry at:
+The GitHub Actions workflow (`.github/workflows/publish.yml`) runs automatically on GitHub release. Verify at:
 
 https://registry.modelcontextprotocol.io/servers/io.github.gtorreal/buda-mcp
 
 If the workflow doesn't trigger, run manually:
 
 ```bash
-# Download mcp-publisher from GitHub releases (check for latest version)
-curl -L https://github.com/modelcontextprotocol/mcp-publisher/releases/latest/download/mcp-publisher-macos -o mcp-publisher
-chmod +x mcp-publisher
 MCP_REGISTRY_TOKEN=<token> ./mcp-publisher publish
 ```
 
@@ -111,23 +114,22 @@ Verify: https://smithery.ai/server/@guiie/buda-mcp
 
 ## 6. Notify mcp.so
 
-**Method:** Submit via the mcp.so listing update form or open a PR to their repository.
-
 **Email/message template:**
 
 ```
-Subject: [Update] buda-mcp v1.1.0 — new tools + auth
+Subject: [Update] buda-mcp v1.2.0 — input sanitization, 429 retry, 23 unit tests
 
 Hi mcp.so team,
 
-I've released v1.1.0 of buda-mcp (@guiie/buda-mcp on npm).
+I've released v1.2.0 of buda-mcp (@guiie/buda-mcp on npm).
 
 Key changes:
-- 3 new public tools: get_spread, compare_markets, get_price_history (OHLCV)
-- Optional HMAC auth scaffold (BUDA_API_KEY / BUDA_API_SECRET) unlocks 4 private tools: get_balances, get_orders, place_order, cancel_order
-- TTL caching for all repeated data fetches
-- MCP Resources: buda://markets and buda://ticker/{market}
-- Structured error responses
+- Input sanitization: all market IDs validated against a strict regex before URL use
+- 429 rate-limit retry: honors Retry-After header (seconds, RFC 7231), defaults to 1s
+- get_price_history: limit raised to 1000 trades for deeper history
+- 23 unit tests added (no live API required): HMAC, cache dedup, confirmation guards, sanitization, retry
+- Single version source-of-truth (package.json → all files via src/version.ts)
+- .env.example added for easy credential setup
 
 Links:
 - npm: https://www.npmjs.com/package/@guiie/buda-mcp
@@ -143,31 +145,25 @@ Thank you!
 
 ## 7. Notify Glama.ai
 
-**Method:** Use Glama's submission form at https://glama.ai/mcp/servers or open an issue/PR on their directory repository.
-
 **Message template:**
 
 ```
-Subject: [Update] buda-mcp v1.1.0
+Subject: [Update] buda-mcp v1.2.0
 
 Hi Glama team,
 
-buda-mcp has been updated to v1.1.0. Here's a summary of what's new:
+buda-mcp has been updated to v1.2.0.
 
 Package: @guiie/buda-mcp (npm)
 Registry: io.github.gtorreal/buda-mcp (MCP Registry)
-Version: 1.1.0
+Version: 1.2.0
 
-New tools added:
-- get_spread: bid/ask spread for any market
-- compare_markets: cross-currency price comparison for a base asset
-- get_price_history: OHLCV candles from trade history (1h/4h/1d)
-- get_balances, get_orders, place_order, cancel_order (authenticated, local-only)
-
-New capabilities:
-- MCP Resources protocol: buda://markets, buda://ticker/{market}
-- TTL caching (60s/5s/3s by data type)
-- Structured error responses (isError: true)
+Changes:
+- Input validation on all market_id inputs (structured isError: true on failure)
+- 429 retry with Retry-After support (RFC 7231 seconds; default 1s)
+- get_price_history limit raised to 1000 trades; UTC bucket timestamps documented
+- 23 unit tests: HMAC signing, cache deduplication, confirmation guards, sanitization, retry
+- Single version source (package.json); .env.example added
 
 Quick start:
   npx @guiie/buda-mcp
@@ -182,11 +178,12 @@ Thank you!
 
 ## 8. Post-publish verification
 
-- [ ] `npx @guiie/buda-mcp@1.1.0` starts successfully
-- [ ] `npm info @guiie/buda-mcp version` returns `1.1.0`
-- [ ] GitHub release tag `v1.1.0` is visible
-- [ ] MCP Registry entry reflects v1.1.0
-- [ ] Smithery server card lists 8 public tools
+- [ ] `npx @guiie/buda-mcp@1.2.0` starts successfully
+- [ ] `npm info @guiie/buda-mcp version` returns `1.2.0`
+- [ ] GitHub release tag `v1.2.0` is visible
+- [ ] MCP Registry entry reflects v1.2.0
+- [ ] Smithery server card lists 8 public tools (with updated get_price_history description)
+- [ ] `GET /health` returns `"version":"1.2.0"` on Railway deployment
+- [ ] `GET /.well-known/mcp/server-card.json` returns tools with updated schemas (no hardcoded JSON)
 - [ ] mcp.so listing updated
 - [ ] Glama.ai listing updated
-- [ ] Railway deployment health check returns `"version":"1.1.0"` at `/health`

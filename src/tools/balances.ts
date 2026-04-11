@@ -2,12 +2,22 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BudaClient, BudaApiError } from "../client.js";
 import type { BalancesResponse } from "../types.js";
 
+export const toolSchema = {
+  name: "get_balances",
+  description:
+    "Get all currency balances for the authenticated Buda.com account. " +
+    "Returns total, available, frozen, and pending withdrawal amounts per currency. " +
+    "Requires BUDA_API_KEY and BUDA_API_SECRET environment variables.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {},
+  },
+};
+
 export function register(server: McpServer, client: BudaClient): void {
   server.tool(
-    "get_balances",
-    "Get all currency balances for the authenticated Buda.com account. " +
-      "Returns total, available, frozen, and pending withdrawal amounts per currency. " +
-      "Requires BUDA_API_KEY and BUDA_API_SECRET environment variables.",
+    toolSchema.name,
+    toolSchema.description,
     {},
     async () => {
       try {

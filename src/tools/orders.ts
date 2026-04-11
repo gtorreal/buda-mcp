@@ -1,13 +1,43 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
+import { validateMarketId } from "../validation.js";
 import type { OrdersResponse } from "../types.js";
+
+export const toolSchema = {
+  name: "get_orders",
+  description:
+    "Get orders for a given Buda.com market. Filter by state (pending, active, traded, canceled). " +
+    "Requires BUDA_API_KEY and BUDA_API_SECRET environment variables.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      market_id: {
+        type: "string",
+        description: "Market ID (e.g. 'BTC-CLP', 'ETH-BTC').",
+      },
+      state: {
+        type: "string",
+        description:
+          "Filter by order state: 'pending', 'active', 'traded', 'canceled', 'canceled_and_traded'.",
+      },
+      per: {
+        type: "number",
+        description: "Results per page (default: 20, max: 300).",
+      },
+      page: {
+        type: "number",
+        description: "Page number (default: 1).",
+      },
+    },
+    required: ["market_id"],
+  },
+};
 
 export function register(server: McpServer, client: BudaClient): void {
   server.tool(
-    "get_orders",
-    "Get orders for a given Buda.com market. Filter by state (pending, active, traded, canceled). " +
-      "Requires BUDA_API_KEY and BUDA_API_SECRET environment variables.",
+    toolSchema.name,
+    toolSchema.description,
     {
       market_id: z
         .string()
@@ -35,6 +65,14 @@ export function register(server: McpServer, client: BudaClient): void {
     },
     async ({ market_id, state, per, page }) => {
       try {
+        const validationError = validateMarketId(market_id);
+        if (validationError) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: validationError, code: "INVALID_MARKET_ID" }) }],
+            isError: true,
+          };
+        }
+
         const params: Record<string, string | number> = {};
         if (state) params.state = state;
         if (per !== undefined) params.per = per;

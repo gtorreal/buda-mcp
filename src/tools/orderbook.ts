@@ -2,13 +2,34 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { MemoryCache, CACHE_TTL } from "../cache.js";
+import { validateMarketId } from "../validation.js";
 import type { OrderBookResponse } from "../types.js";
+
+export const toolSchema = {
+  name: "get_orderbook",
+  description:
+    "Get the current order book (bids and asks) for a Buda.com market. Returns sorted arrays of " +
+    "bids (buy orders) and asks (sell orders), each as [price, amount] pairs.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      market_id: {
+        type: "string",
+        description: "Market ID (e.g. 'BTC-CLP', 'ETH-BTC').",
+      },
+      limit: {
+        type: "number",
+        description: "Maximum number of levels to return per side (default: all).",
+      },
+    },
+    required: ["market_id"],
+  },
+};
 
 export function register(server: McpServer, client: BudaClient, cache: MemoryCache): void {
   server.tool(
-    "get_orderbook",
-    "Get the current order book (bids and asks) for a Buda.com market. Returns sorted arrays of " +
-      "bids (buy orders) and asks (sell orders), each as [price, amount] pairs.",
+    toolSchema.name,
+    toolSchema.description,
     {
       market_id: z
         .string()
@@ -22,6 +43,14 @@ export function register(server: McpServer, client: BudaClient, cache: MemoryCac
     },
     async ({ market_id, limit }) => {
       try {
+        const validationError = validateMarketId(market_id);
+        if (validationError) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: validationError, code: "INVALID_MARKET_ID" }) }],
+            isError: true,
+          };
+        }
+
         const id = market_id.toLowerCase();
         const data = await cache.getOrFetch<OrderBookResponse>(
           `orderbook:${id}`,

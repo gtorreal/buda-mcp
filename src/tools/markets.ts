@@ -2,13 +2,29 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { MemoryCache, CACHE_TTL } from "../cache.js";
+import { validateMarketId } from "../validation.js";
 import type { MarketsResponse, MarketResponse } from "../types.js";
+
+export const toolSchema = {
+  name: "get_markets",
+  description:
+    "List all available trading pairs on Buda.com, or get details for a specific market. " +
+    "Returns base/quote currencies, fees, and minimum order sizes.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      market_id: {
+        type: "string",
+        description: "Optional market ID (e.g. 'BTC-CLP', 'ETH-BTC'). Omit to list all markets.",
+      },
+    },
+  },
+};
 
 export function register(server: McpServer, client: BudaClient, cache: MemoryCache): void {
   server.tool(
-    "get_markets",
-    "List all available trading pairs on Buda.com, or get details for a specific market. " +
-      "Returns base/quote currencies, fees, and minimum order sizes.",
+    toolSchema.name,
+    toolSchema.description,
     {
       market_id: z
         .string()
@@ -20,6 +36,14 @@ export function register(server: McpServer, client: BudaClient, cache: MemoryCac
     async ({ market_id }) => {
       try {
         if (market_id) {
+          const validationError = validateMarketId(market_id);
+          if (validationError) {
+            return {
+              content: [{ type: "text", text: JSON.stringify({ error: validationError, code: "INVALID_MARKET_ID" }) }],
+              isError: true,
+            };
+          }
+
           const id = market_id.toLowerCase();
           const data = await cache.getOrFetch<MarketResponse>(
             `market:${id}`,

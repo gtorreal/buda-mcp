@@ -4,12 +4,29 @@ import { BudaClient, BudaApiError } from "../client.js";
 import { MemoryCache, CACHE_TTL } from "../cache.js";
 import type { AllTickersResponse } from "../types.js";
 
+export const toolSchema = {
+  name: "compare_markets",
+  description:
+    "Compare ticker data for all trading pairs of a given base currency across Buda.com's " +
+    "supported quote currencies (CLP, COP, PEN, BTC, USDC, ETH). " +
+    "For example, passing 'BTC' returns side-by-side data for BTC-CLP, BTC-COP, BTC-PEN, etc.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      base_currency: {
+        type: "string",
+        description:
+          "Base currency to compare across all available markets (e.g. 'BTC', 'ETH', 'XRP').",
+      },
+    },
+    required: ["base_currency"],
+  },
+};
+
 export function register(server: McpServer, client: BudaClient, cache: MemoryCache): void {
   server.tool(
-    "compare_markets",
-    "Compare ticker data for all trading pairs of a given base currency across Buda.com's " +
-      "supported quote currencies (CLP, COP, PEN, BTC, USDC, ETH). " +
-      "For example, passing 'BTC' returns side-by-side data for BTC-CLP, BTC-COP, BTC-PEN, etc.",
+    toolSchema.name,
+    toolSchema.description,
     {
       base_currency: z
         .string()

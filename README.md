@@ -161,13 +161,13 @@ Side-by-side ticker data for all pairs of a given base currency (CLP, COP, PEN, 
 ---
 
 #### `get_price_history`
-OHLCV candles derived from recent trade history (no native candlestick endpoint exists on Buda — candles are aggregated client-side from up to 100 raw trades).
+OHLCV candles derived from recent trade history (Buda has no native candlestick endpoint — candles are aggregated client-side from raw trades). Candle timestamps are UTC bucket boundaries. Increasing `limit` gives deeper history at the cost of a slower response.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `market_id` | string | Yes | Market ID. |
 | `period` | `1h` \| `4h` \| `1d` | No | Candle period (default `1h`). |
-| `limit` | number | No | Raw trades to fetch before aggregation (default 100, max 100). |
+| `limit` | number | No | Raw trades to fetch before aggregation (default 100, max 1000). |
 
 **Example prompts:**
 - *"Show me hourly price candles for BTC-CLP"*
@@ -252,7 +252,7 @@ In addition to tools, the server exposes two MCP Resources that clients can read
 
 The server defaults to **public-only mode** — no API key needed, no breaking changes for existing users.
 
-To enable authenticated tools, set environment variables before running:
+To enable authenticated tools, copy `.env.example` to `.env` and fill in your credentials, then set them as environment variables before running:
 
 ```bash
 BUDA_API_KEY=your_api_key BUDA_API_SECRET=your_api_secret npx @guiie/buda-mcp

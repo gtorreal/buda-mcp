@@ -11,7 +11,7 @@ info:
     stdio server. Deploy locally with mcp-proxy:
       mcp-proxy --port 8000 -- npx -y @guiie/buda-mcp
     Or point `servers[0].url` at your hosted instance.
-  version: 1.1.0
+  version: 1.2.0
   contact:
     url: https://github.com/gtorreal/buda-mcp
 
@@ -231,9 +231,10 @@ paths:
       operationId: getPriceHistory
       summary: OHLCV price history derived from trade history
       description: |
-        Returns OHLCV (open/high/low/close/volume) candles derived from recent trade history.
-        Buda.com has no native candlestick endpoint; candles are aggregated client-side from
-        up to 100 raw trades. Supports 1h, 4h, and 1d candle periods.
+        IMPORTANT: Candles are aggregated client-side from raw trades (Buda has no native
+        candlestick endpoint) — increase 'limit' for deeper history but expect slower responses.
+        Returns OHLCV (open/high/low/close/volume) candles. Candle timestamps are UTC bucket
+        boundaries. Supports 1h, 4h, and 1d candle periods.
       parameters:
         - name: market_id
           in: query
@@ -253,11 +254,11 @@ paths:
         - name: limit
           in: query
           required: false
-          description: Number of raw trades to fetch before aggregation (default 100, max 100).
+          description: Number of raw trades to fetch before aggregation (default 100, max 1000). More trades = deeper history.
           schema:
             type: integer
             minimum: 1
-            maximum: 100
+            maximum: 1000
       responses:
         "200":
           description: OHLCV candles

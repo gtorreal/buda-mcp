@@ -50,8 +50,8 @@ Side-by-side ticker data for all trading pairs of a given base currency across a
 **Parameters:** `base_currency` *(required)* — e.g. `BTC`, `ETH`, `XRP`.
 
 ### `get_price_history`
-OHLCV (open/high/low/close/volume) candles derived from recent trade history. Supports `1h`, `4h`, and `1d` periods.  
-**Parameters:** `market_id` *(required)*, `period` *(optional: `1h`/`4h`/`1d`, default `1h`)*, `limit` *(optional, max 100 trades)*.
+OHLCV (open/high/low/close/volume) candles derived from recent trade history (Buda has no native candlestick endpoint). Supports `1h`, `4h`, and `1d` periods. Candle timestamps are UTC bucket boundaries.  
+**Parameters:** `market_id` *(required)*, `period` *(optional: `1h`/`4h`/`1d`, default `1h`)*, `limit` *(optional, default 100, max 1000 trades — more = deeper history)*.
 
 ### Authenticated tools (require `BUDA_API_KEY` + `BUDA_API_SECRET`)
 

@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { MemoryCache } from "../cache.js";
+import { validateMarketId } from "../validation.js";
 import type { TradesResponse } from "../types.js";
 
 const PERIOD_MS: Record<string, number> = {
@@ -20,13 +21,40 @@ interface OhlcvCandle {
   trade_count: number;
 }
 
+export const toolSchema = {
+  name: "get_price_history",
+  description:
+    "IMPORTANT: Candles are aggregated client-side from raw trades (Buda has no native candlestick " +
+    "endpoint) — fetching more trades via the 'limit' parameter gives deeper history but slower " +
+    "responses. Returns OHLCV (open/high/low/close/volume) price history for a Buda.com market. " +
+    "Candle timestamps are UTC bucket boundaries (e.g. '2026-04-10T12:00:00.000Z' for 1h). " +
+    "Supports 1h, 4h, and 1d candle periods.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      market_id: {
+        type: "string",
+        description: "Market ID (e.g. 'BTC-CLP', 'ETH-BTC').",
+      },
+      period: {
+        type: "string",
+        description: "Candle period: '1h' (1 hour), '4h' (4 hours), or '1d' (1 day). Default: '1h'.",
+      },
+      limit: {
+        type: "number",
+        description:
+          "Raw trades to fetch before aggregation (default: 100, max: 1000). " +
+          "More trades = deeper history but slower response.",
+      },
+    },
+    required: ["market_id"],
+  },
+};
+
 export function register(server: McpServer, client: BudaClient, _cache: MemoryCache): void {
   server.tool(
-    "get_price_history",
-    "Get OHLCV (open/high/low/close/volume) price history for a Buda.com market, derived from " +
-      "recent trade history (up to 100 trades). Buda does not provide a native candlestick endpoint; " +
-      "candles are aggregated client-side from raw trades. Use the 'period' parameter to control " +
-      "candle size (1h, 4h, or 1d).",
+    toolSchema.name,
+    toolSchema.description,
     {
       market_id: z
         .string()
@@ -39,12 +67,23 @@ export function register(server: McpServer, client: BudaClient, _cache: MemoryCa
         .number()
         .int()
         .min(1)
-        .max(100)
+        .max(1000)
         .optional()
-        .describe("Number of raw trades to fetch before aggregation (default: 100, max: 100)."),
+        .describe(
+          "Raw trades to fetch before aggregation (default: 100, max: 1000). " +
+            "More trades = deeper history but slower response.",
+        ),
     },
     async ({ market_id, period, limit }) => {
       try {
+        const validationError = validateMarketId(market_id);
+        if (validationError) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ error: validationError, code: "INVALID_MARKET_ID" }) }],
+            isError: true,
+          };
+        }
+
         const id = market_id.toLowerCase();
         const tradesLimit = limit ?? 100;
 
@@ -108,7 +147,10 @@ export function register(server: McpServer, client: BudaClient, _cache: MemoryCa
           market_id: market_id.toUpperCase(),
           period,
           candle_count: candles.length,
-          note: "Candles derived from trade history (up to 100 trades). For deeper history, use pagination via the get_trades tool.",
+          trades_fetched: entries.length,
+          note:
+            "Candles derived from raw trade history. Candle timestamps are UTC bucket boundaries. " +
+            "Increase 'limit' (max 1000) for deeper history.",
           candles,
         };
 

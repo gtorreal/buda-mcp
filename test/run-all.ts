@@ -2,8 +2,20 @@
  * Integration test: calls each Buda MCP tool directly via BudaClient
  * and prints a summary of the results.
  *
- * Run with: npm test
+ * Run with: npm run test:integration
+ * Skipped automatically when the Buda API is unreachable (CI without network).
  */
+
+// Connectivity pre-check — skip gracefully instead of failing CI when the API is unreachable.
+try {
+  await fetch("https://www.buda.com/api/v2/markets.json", {
+    signal: AbortSignal.timeout(3000),
+  });
+} catch {
+  console.log("\nBuda API is unreachable — skipping integration tests (no network or API down).");
+  console.log("Run unit tests only with: npm run test:unit");
+  process.exit(0);
+}
 
 import { BudaClient } from "../src/client.js";
 import type {

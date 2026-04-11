@@ -1,6 +1,6 @@
 {
   "name": "@guiie/buda-mcp",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "mcpName": "io.github.gtorreal/buda-mcp",
   "description": "MCP server for Buda.com's public cryptocurrency exchange API (Chile, Colombia, Peru)",
   "type": "module",
@@ -14,7 +14,10 @@
     "start:stdio": "node dist/index.js",
     "dev:http": "tsx src/http.ts",
     "dev": "tsx src/index.ts",
-    "test": "tsx test/run-all.ts"
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "tsx test/unit.ts",
+    "test:integration": "tsx test/run-all.ts",
+    "sync-version": "node scripts/sync-version.mjs"
   },
   "engines": {
     "node": ">=18"

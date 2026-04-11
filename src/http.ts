@@ -3,6 +3,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { BudaClient } from "./client.js";
 import { MemoryCache, CACHE_TTL } from "./cache.js";
+import { VERSION } from "./version.js";
 import type { MarketsResponse, TickerResponse } from "./types.js";
 import * as markets from "./tools/markets.js";
 import * as ticker from "./tools/ticker.js";
@@ -27,8 +28,28 @@ const client = new BudaClient(
 
 const authEnabled = client.hasAuth();
 
+// Schemas for the Smithery server-card — assembled from the same definitions used in register().
+// Adding a new tool only requires exporting its toolSchema; no changes needed here.
+const PUBLIC_TOOL_SCHEMAS = [
+  markets.toolSchema,
+  ticker.toolSchema,
+  orderbook.toolSchema,
+  trades.toolSchema,
+  volume.toolSchema,
+  spread.toolSchema,
+  compareMarkets.toolSchema,
+  priceHistory.toolSchema,
+];
+
+const AUTH_TOOL_SCHEMAS = [
+  balances.toolSchema,
+  orders.toolSchema,
+  placeOrder.toolSchema,
+  cancelOrder.toolSchema,
+];
+
 function createServer(): McpServer {
-  const server = new McpServer({ name: "buda-mcp", version: "1.1.2" });
+  const server = new McpServer({ name: "buda-mcp", version: VERSION });
 
   // Per-request cache so caching works correctly for stateless HTTP
   const reqCache = new MemoryCache();
@@ -101,160 +122,21 @@ app.use(express.json());
 
 // Health check for Railway / uptime monitors
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", server: "buda-mcp", version: "1.1.2", auth_mode: authEnabled ? "authenticated" : "public" });
+  res.json({
+    status: "ok",
+    server: "buda-mcp",
+    version: VERSION,
+    auth_mode: authEnabled ? "authenticated" : "public",
+  });
 });
 
-// Smithery static server card — lets Smithery scan tools without running the server
+// Smithery static server card — assembled programmatically from tool definitions.
+// Adding a new tool only requires exporting its toolSchema; this handler needs no changes.
 app.get("/.well-known/mcp/server-card.json", (_req, res) => {
-  const publicTools = [
-    {
-      name: "get_markets",
-      description: "List all available trading pairs on Buda.com, or get details for a specific market.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          market_id: { type: "string", description: "Optional market ID (e.g. BTC-CLP)" },
-        },
-      },
-    },
-    {
-      name: "get_ticker",
-      description: "Get current price, bid/ask, volume, and price change for a Buda.com market.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          market_id: { type: "string", description: "Market ID (e.g. BTC-CLP)" },
-        },
-        required: ["market_id"],
-      },
-    },
-    {
-      name: "get_orderbook",
-      description: "Get the full order book (bids and asks) for a Buda.com market.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          market_id: { type: "string", description: "Market ID (e.g. BTC-CLP)" },
-          limit: { type: "number", description: "Max levels per side" },
-        },
-        required: ["market_id"],
-      },
-    },
-    {
-      name: "get_trades",
-      description: "Get recent trade history for a Buda.com market.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          market_id: { type: "string", description: "Market ID (e.g. BTC-CLP)" },
-          limit: { type: "number", description: "Number of trades (max 100)" },
-          timestamp: { type: "number", description: "Unix timestamp for pagination" },
-        },
-        required: ["market_id"],
-      },
-    },
-    {
-      name: "get_market_volume",
-      description: "Get 24h and 7-day transacted volume for a Buda.com market.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          market_id: { type: "string", description: "Market ID (e.g. BTC-CLP)" },
-        },
-        required: ["market_id"],
-      },
-    },
-    {
-      name: "get_spread",
-      description: "Calculate bid/ask spread (absolute and percentage) for a Buda.com market.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          market_id: { type: "string", description: "Market ID (e.g. BTC-CLP)" },
-        },
-        required: ["market_id"],
-      },
-    },
-    {
-      name: "compare_markets",
-      description: "Compare ticker data for all trading pairs of a given base currency side by side.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          base_currency: { type: "string", description: "Base currency (e.g. BTC, ETH)" },
-        },
-        required: ["base_currency"],
-      },
-    },
-    {
-      name: "get_price_history",
-      description: "Get OHLCV price history for a market, derived from recent trade history.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          market_id: { type: "string", description: "Market ID (e.g. BTC-CLP)" },
-          period: { type: "string", enum: ["1h", "4h", "1d"], description: "Candle period" },
-          limit: { type: "number", description: "Raw trades to fetch (max 100)" },
-        },
-        required: ["market_id"],
-      },
-    },
-  ];
-
-  const authTools = authEnabled
-    ? [
-        {
-          name: "get_balances",
-          description: "Get all currency balances for the authenticated account.",
-          inputSchema: { type: "object", properties: {} },
-        },
-        {
-          name: "get_orders",
-          description: "Get orders for a given market.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              market_id: { type: "string" },
-              state: { type: "string" },
-            },
-            required: ["market_id"],
-          },
-        },
-        {
-          name: "place_order",
-          description: "Place a limit or market order. Requires confirmation_token='CONFIRM'.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              market_id: { type: "string" },
-              type: { type: "string", enum: ["Bid", "Ask"] },
-              price_type: { type: "string", enum: ["limit", "market"] },
-              amount: { type: "number" },
-              limit_price: { type: "number" },
-              confirmation_token: { type: "string" },
-            },
-            required: ["market_id", "type", "price_type", "amount", "confirmation_token"],
-          },
-        },
-        {
-          name: "cancel_order",
-          description: "Cancel an order by ID. Requires confirmation_token='CONFIRM'.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              order_id: { type: "number" },
-              confirmation_token: { type: "string" },
-            },
-            required: ["order_id", "confirmation_token"],
-          },
-        },
-      ]
-    : [];
-
   res.json({
-    serverInfo: { name: "buda-mcp", version: "1.1.2" },
+    serverInfo: { name: "buda-mcp", version: VERSION },
     authentication: { required: authEnabled },
-    tools: [...publicTools, ...authTools],
+    tools: [...PUBLIC_TOOL_SCHEMAS, ...(authEnabled ? AUTH_TOOL_SCHEMAS : [])],
     resources: [
       { uri: "buda://markets", name: "All Buda.com markets", mimeType: "application/json" },
       { uri: "buda://ticker/{market}", name: "Ticker for a specific market", mimeType: "application/json" },

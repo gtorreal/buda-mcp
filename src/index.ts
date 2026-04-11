@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BudaClient } from "./client.js";
 import { cache, CACHE_TTL } from "./cache.js";
+import { VERSION } from "./version.js";
 import type { MarketsResponse, TickerResponse } from "./types.js";
 import * as markets from "./tools/markets.js";
 import * as ticker from "./tools/ticker.js";
@@ -25,7 +26,7 @@ const client = new BudaClient(
 
 const server = new McpServer({
   name: "buda-mcp",
-  version: "1.1.2",
+  version: VERSION,
 });
 
 // Public tools

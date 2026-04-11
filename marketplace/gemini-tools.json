@@ -1,5 +1,5 @@
 {
-  "_comment": "Gemini function declarations for buda-mcp v1.1.0. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
+  "_comment": "Gemini function declarations for buda-mcp v1.2.0. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
   "functionDeclarations": [
     {
       "name": "get_markets",
@@ -113,7 +113,7 @@
     },
     {
       "name": "get_price_history",
-      "description": "Get OHLCV (open/high/low/close/volume) price history for a Buda.com market, derived from recent trade history. Candles are aggregated client-side from up to 100 raw trades. Supports 1h, 4h, and 1d candle periods.",
+      "description": "IMPORTANT: Candles are aggregated client-side from raw trades (Buda has no native candlestick endpoint) — increase 'limit' for deeper history. Returns OHLCV (open/high/low/close/volume) price history for a Buda.com market. Candle timestamps are UTC bucket boundaries. Supports 1h, 4h, and 1d candle periods.",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -127,7 +127,7 @@
           },
           "limit": {
             "type": "INTEGER",
-            "description": "Number of raw trades to fetch before aggregation. Default is 100, maximum is 100."
+            "description": "Number of raw trades to fetch before aggregation. Default is 100, maximum is 1000. More trades = deeper history."
           }
         },
         "required": ["market_id"]
