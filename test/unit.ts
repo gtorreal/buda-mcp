@@ -1911,7 +1911,7 @@ await test("handleCreateReceiveAddress: INVALID_CURRENCY without fetch", async (
   };
   try {
     const client = {} as BudaClient;
-    const result = await handleCreateReceiveAddress({ currency: "!!!!" }, client);
+    const result = await handleCreateReceiveAddress({ currency: "!!!!", confirmation_token: "CONFIRM" }, client);
     assert(result.isError === true, "should be error");
     assert(!fetchCalled.value, "fetch should not have been called");
     const parsed = JSON.parse(result.content[0].text) as { code: string };
@@ -1938,7 +1938,7 @@ await test("handleCreateReceiveAddress: happy path", async () => {
     );
   try {
     const client = new BudaClient("https://www.buda.com/api/v2");
-    const result = await handleCreateReceiveAddress({ currency: "BTC" }, client);
+    const result = await handleCreateReceiveAddress({ currency: "BTC", confirmation_token: "CONFIRM" }, client);
     assert(!result.isError, "should not be error");
     const parsed = JSON.parse(result.content[0].text) as {
       id: number;
@@ -1961,7 +1961,7 @@ await test("handleCreateReceiveAddress: fiat currency API error passthrough", as
     new Response(JSON.stringify({ message: "Not found" }), { status: 404 });
   try {
     const client = new BudaClient("https://www.buda.com/api/v2");
-    const result = await handleCreateReceiveAddress({ currency: "CLP" }, client);
+    const result = await handleCreateReceiveAddress({ currency: "CLP", confirmation_token: "CONFIRM" }, client);
     assert(result.isError === true, "should be error for fiat");
     const parsed = JSON.parse(result.content[0].text) as { code: number };
     assertEqual(parsed.code, 404, "code should be 404");
@@ -1985,7 +1985,7 @@ await test("handleQuoteRemittance: INVALID_CURRENCY without fetch", async () => 
   };
   try {
     const client = {} as BudaClient;
-    const result = await handleQuoteRemittance({ currency: "!!!", amount: 100, recipient_id: 1 }, client);
+    const result = await handleQuoteRemittance({ currency: "!!!", amount: 100, recipient_id: 1, confirmation_token: "CONFIRM" }, client);
     assert(result.isError === true, "should be error");
     assert(!fetchCalled.value, "fetch should not have been called");
     const parsed = JSON.parse(result.content[0].text) as { code: string };
@@ -2014,7 +2014,7 @@ await test("handleQuoteRemittance: happy path", async () => {
     );
   try {
     const client = new BudaClient("https://www.buda.com/api/v2");
-    const result = await handleQuoteRemittance({ currency: "CLP", amount: 100000, recipient_id: 5 }, client);
+    const result = await handleQuoteRemittance({ currency: "CLP", amount: 100000, recipient_id: 5, confirmation_token: "CONFIRM" }, client);
     assert(!result.isError, "should not be error");
     const parsed = JSON.parse(result.content[0].text) as {
       id: number;
@@ -2035,7 +2035,7 @@ await test("handleQuoteRemittance: 404 unknown recipient passthrough", async () 
     new Response(JSON.stringify({ message: "Not found" }), { status: 404 });
   try {
     const client = new BudaClient("https://www.buda.com/api/v2");
-    const result = await handleQuoteRemittance({ currency: "CLP", amount: 100000, recipient_id: 9999 }, client);
+    const result = await handleQuoteRemittance({ currency: "CLP", amount: 100000, recipient_id: 9999, confirmation_token: "CONFIRM" }, client);
     assert(result.isError === true, "should be error");
     const parsed = JSON.parse(result.content[0].text) as { code: number };
     assertEqual(parsed.code, 404, "code should be 404");

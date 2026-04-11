@@ -23,7 +23,7 @@ async function cancelAllOrdersForMarket(marketId: string, client: BudaClient): P
     const orders = data.orders ?? [];
     await Promise.allSettled(
       orders.map((order) =>
-        client.put<OrderResponse>(`/orders/${order.id}`, { state: "canceling" }),
+        client.put<OrderResponse>(`/orders/${order.id}`, { order: { state: "canceling" } }),
       ),
     );
     timers.delete(marketId);
@@ -151,6 +151,21 @@ export async function handleScheduleCancelAll(
   if (validationError) {
     return {
       content: [{ type: "text", text: JSON.stringify({ error: validationError, code: "INVALID_MARKET_ID" }) }],
+      isError: true,
+    };
+  }
+
+  if (!Number.isInteger(ttl_seconds) || ttl_seconds < 10 || ttl_seconds > 300) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            error: "ttl_seconds must be an integer between 10 and 300.",
+            code: "VALIDATION_ERROR",
+          }),
+        },
+      ],
       isError: true,
     };
   }

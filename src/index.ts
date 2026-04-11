@@ -5,6 +5,7 @@ import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BudaClient } from "./client.js";
 import { cache, CACHE_TTL } from "./cache.js";
 import { VERSION } from "./version.js";
+import { validateMarketId } from "./validation.js";
 import type { MarketsResponse, TickerResponse } from "./types.js";
 import * as markets from "./tools/markets.js";
 import * as ticker from "./tools/ticker.js";
@@ -119,7 +120,10 @@ server.resource(
   "buda-ticker",
   new ResourceTemplate("buda://ticker/{market}", { list: undefined }),
   async (uri, params) => {
-    const marketId = (params.market as string).toLowerCase();
+    const raw = params.market as string;
+    const validationError = validateMarketId(raw);
+    if (validationError) throw new Error(validationError);
+    const marketId = raw.toLowerCase();
     const data = await cache.getOrFetch<TickerResponse>(
       `ticker:${marketId}`,
       CACHE_TTL.TICKER,
@@ -141,9 +145,12 @@ server.resource(
   "buda-summary",
   new ResourceTemplate("buda://summary/{market}", { list: undefined }),
   async (uri, params) => {
-    const marketId = (params.market as string).toUpperCase();
+    const raw = params.market as string;
+    const validationError = validateMarketId(raw);
+    if (validationError) throw new Error(validationError);
+    const marketId = raw.toUpperCase();
     const result = await handleMarketSummary({ market_id: marketId }, client, cache);
-    const text = result.content[0].text;
+    const text = result.content[0]?.text ?? JSON.stringify({ error: "No content returned" });
     return {
       contents: [
         {

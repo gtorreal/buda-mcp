@@ -5,7 +5,9 @@ import type { Amount, OhlcvCandle } from "./types.js";
  * All numeric strings are cast to float via parseFloat.
  */
 export function flattenAmount(amount: Amount): { value: number; currency: string } {
-  return { value: parseFloat(amount[0]), currency: amount[1] };
+  const value = parseFloat(amount[0]);
+  if (isNaN(value)) throw new Error(`Invalid amount value: "${amount[0]}"`);
+  return { value, currency: amount[1] };
 }
 
 /**

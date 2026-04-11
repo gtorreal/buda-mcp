@@ -191,6 +191,38 @@ export async function handlePlaceOrder(
         };
       }
 
+      if (gtd_timestamp !== undefined) {
+        const ts = new Date(gtd_timestamp).getTime();
+        if (isNaN(ts)) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  error: "gtd_timestamp must be a valid ISO 8601 datetime string.",
+                  code: "VALIDATION_ERROR",
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        if (ts <= Date.now()) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  error: "gtd_timestamp must be a future datetime.",
+                  code: "VALIDATION_ERROR",
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
       let limitType = "gtc";
       if (ioc) limitType = "ioc";
       else if (fok) limitType = "fok";

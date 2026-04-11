@@ -34,8 +34,10 @@ export class BudaClient {
     return Boolean(this.apiKey && this.apiSecret);
   }
 
+  private _nonceCounter = 0;
+
   private nonce(): string {
-    return String(Math.floor(Date.now() * 1000));
+    return String(Date.now() * 1000 + (this._nonceCounter++ % 1000));
   }
 
   private sign(method: string, pathWithQuery: string, body: string, nonce: string): string {

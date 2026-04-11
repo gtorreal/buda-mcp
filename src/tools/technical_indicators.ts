@@ -191,7 +191,7 @@ export async function handleTechnicalIndicators(
     const macdResult = macd(closes, 12, 26, 9);
     const bbResult = bollingerBands(closes, 20, 2);
     const sma20 = parseFloat(sma(closes, 20).toFixed(2));
-    const sma50 = parseFloat(sma(closes, 50).toFixed(2));
+    const sma50 = closes.length >= 50 ? parseFloat(sma(closes, 50).toFixed(2)) : null;
     const lastClose = closes[closes.length - 1];
 
     // Signal interpretations
@@ -230,6 +230,7 @@ export async function handleTechnicalIndicators(
         bollinger_bands: bbResult,
         sma_20: sma20,
         sma_50: sma50,
+        sma_50_warning: sma50 === null ? `insufficient data (need 50 candles, have ${closes.length})` : undefined,
       },
       signals: {
         rsi_signal: rsiSignal,

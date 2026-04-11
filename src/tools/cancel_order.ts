@@ -59,7 +59,7 @@ export async function handleCancelOrder(
 
   try {
     const data = await client.put<OrderResponse>(`/orders/${order_id}`, {
-      state: "canceling",
+      order: { state: "canceling" },
     });
 
     return {

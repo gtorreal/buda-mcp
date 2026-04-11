@@ -34,7 +34,8 @@ export const quoteRemittanceToolSchema = {
     "Requests a price quote for a fiat remittance to a saved recipient. " +
     "Returns a remittance object in 'quoted' state with an expiry timestamp. " +
     "NOT idempotent — creates a new remittance record each call. " +
-    "To execute, call accept_remittance_quote with the returned ID before it expires. " +
+    "IMPORTANT: Pass confirmation_token='CONFIRM' to execute. " +
+    "To execute the transfer, call accept_remittance_quote with the returned ID before it expires. " +
     "Requires BUDA_API_KEY and BUDA_API_SECRET. " +
     "Example: 'Get a remittance quote to send 100000 CLP to recipient 5.'",
   inputSchema: {
@@ -52,8 +53,12 @@ export const quoteRemittanceToolSchema = {
         type: "number",
         description: "ID of the saved remittance recipient.",
       },
+      confirmation_token: {
+        type: "string",
+        description: "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to create the quote.",
+      },
     },
-    required: ["currency", "amount", "recipient_id"],
+    required: ["currency", "amount", "recipient_id", "confirmation_token"],
   },
 };
 
@@ -178,10 +183,28 @@ export async function handleGetRemittance(
 }
 
 export async function handleQuoteRemittance(
-  args: { currency: string; amount: number; recipient_id: number },
+  args: { currency: string; amount: number; recipient_id: number; confirmation_token: string },
   client: BudaClient,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
-  const { currency, amount, recipient_id } = args;
+  const { currency, amount, recipient_id, confirmation_token } = args;
+
+  if (confirmation_token !== "CONFIRM") {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            error:
+              "Remittance quote not created. confirmation_token must equal 'CONFIRM' to execute. " +
+              "Review the details and set confirmation_token='CONFIRM' to proceed.",
+            code: "CONFIRMATION_REQUIRED",
+            preview: { currency, amount, recipient_id },
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
 
   const validationError = validateCurrency(currency);
   if (validationError) {
@@ -283,6 +306,9 @@ export function register(server: McpServer, client: BudaClient): void {
       currency: z.string().min(2).max(10).describe("Fiat currency code (e.g. 'CLP', 'COP')."),
       amount: z.number().positive().describe("Amount to remit (positive number)."),
       recipient_id: z.number().int().positive().describe("ID of the saved remittance recipient."),
+      confirmation_token: z
+        .string()
+        .describe("Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to create the quote."),
     },
     (args) => handleQuoteRemittance(args, client),
   );

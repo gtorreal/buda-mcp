@@ -4,6 +4,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { BudaClient } from "./client.js";
 import { MemoryCache, CACHE_TTL } from "./cache.js";
 import { VERSION } from "./version.js";
+import { validateMarketId } from "./validation.js";
 import type { MarketsResponse, TickerResponse } from "./types.js";
 import * as markets from "./tools/markets.js";
 import * as ticker from "./tools/ticker.js";
@@ -175,7 +176,10 @@ function createServer(): McpServer {
     "buda-ticker",
     new ResourceTemplate("buda://ticker/{market}", { list: undefined }),
     async (uri, params) => {
-      const marketId = (params.market as string).toLowerCase();
+      const raw = params.market as string;
+      const validationError = validateMarketId(raw);
+      if (validationError) throw new Error(validationError);
+      const marketId = raw.toLowerCase();
       const data = await reqCache.getOrFetch<TickerResponse>(
         `ticker:${marketId}`,
         CACHE_TTL.TICKER,
@@ -197,9 +201,12 @@ function createServer(): McpServer {
     "buda-summary",
     new ResourceTemplate("buda://summary/{market}", { list: undefined }),
     async (uri, params) => {
-      const marketId = (params.market as string).toUpperCase();
+      const raw = params.market as string;
+      const validationError = validateMarketId(raw);
+      if (validationError) throw new Error(validationError);
+      const marketId = raw.toUpperCase();
       const result = await handleMarketSummary({ market_id: marketId }, client, reqCache);
-      const text = result.content[0].text;
+      const text = result.content[0]?.text ?? JSON.stringify({ error: "No content returned" });
       return {
         contents: [
           {
@@ -217,6 +224,25 @@ function createServer(): McpServer {
 
 const app = express();
 app.use(express.json());
+
+const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
+
+function mcpAuthMiddleware(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void {
+  if (!MCP_AUTH_TOKEN) {
+    next();
+    return;
+  }
+  const auth = req.headers.authorization ?? "";
+  if (auth !== `Bearer ${MCP_AUTH_TOKEN}`) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  next();
+}
 
 // Health check for Railway / uptime monitors
 app.get("/health", (_req, res) => {
@@ -245,7 +271,7 @@ app.get("/.well-known/mcp/server-card.json", (_req, res) => {
 });
 
 // Stateless StreamableHTTP — new server instance per request (no session state needed)
-app.post("/mcp", async (req, res) => {
+app.post("/mcp", mcpAuthMiddleware, async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
@@ -260,7 +286,7 @@ app.post("/mcp", async (req, res) => {
 });
 
 // SSE upgrade for clients that prefer streaming
-app.get("/mcp", async (req, res) => {
+app.get("/mcp", mcpAuthMiddleware, async (req, res) => {
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });

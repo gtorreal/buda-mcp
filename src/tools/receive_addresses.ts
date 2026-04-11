@@ -10,6 +10,7 @@ export const createReceiveAddressToolSchema = {
     "Generates a new receive address for a crypto currency. " +
     "Creates a new blockchain deposit address for the given currency. " +
     "Each call generates a distinct address. Not idempotent. " +
+    "IMPORTANT: Pass confirmation_token='CONFIRM' to execute. " +
     "Only applicable to crypto currencies (BTC, ETH, etc.). " +
     "Requires BUDA_API_KEY and BUDA_API_SECRET. " +
     "Example: 'Give me a fresh Bitcoin deposit address.'",
@@ -20,8 +21,12 @@ export const createReceiveAddressToolSchema = {
         type: "string",
         description: "Currency code (e.g. 'BTC', 'ETH').",
       },
+      confirmation_token: {
+        type: "string",
+        description: "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to generate a new address.",
+      },
     },
-    required: ["currency"],
+    required: ["currency", "confirmation_token"],
   },
 };
 
@@ -152,10 +157,28 @@ export async function handleGetReceiveAddress(
 }
 
 export async function handleCreateReceiveAddress(
-  args: { currency: string },
+  args: { currency: string; confirmation_token: string },
   client: BudaClient,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
-  const { currency } = args;
+  const { currency, confirmation_token } = args;
+
+  if (confirmation_token !== "CONFIRM") {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            error:
+              "Address not generated. confirmation_token must equal 'CONFIRM' to execute. " +
+              "Each call creates a distinct address — review and set confirmation_token='CONFIRM' to proceed.",
+            code: "CONFIRMATION_REQUIRED",
+            preview: { currency },
+          }),
+        },
+      ],
+      isError: true,
+    };
+  }
 
   const validationError = validateCurrency(currency);
   if (validationError) {
@@ -210,6 +233,9 @@ export function register(server: McpServer, client: BudaClient): void {
     createReceiveAddressToolSchema.description,
     {
       currency: z.string().min(2).max(10).describe("Currency code (e.g. 'BTC', 'ETH')."),
+      confirmation_token: z
+        .string()
+        .describe("Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to generate a new address."),
     },
     (args) => handleCreateReceiveAddress(args, client),
   );
