@@ -306,6 +306,93 @@
         },
         "required": ["market_id"]
       }
+    },
+    {
+      "name": "get_balances",
+      "description": "Returns all currency balances for the authenticated Buda.com account as flat typed objects. Each currency entry includes total amount, available amount (not frozen), frozen amount, and pending withdrawal amount — all as floats with separate _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'How much BTC do I have available to trade right now?'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "get_orders",
+      "description": "Returns orders for a given Buda.com market as flat typed objects. All monetary amounts are floats with separate _currency fields (e.g. amount + amount_currency). Filterable by state: pending, active, traded, canceled, canceled_and_traded. Supports pagination via per and page. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'Show my open limit orders on BTC-CLP.'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market identifier (e.g. 'BTC-CLP', 'ETH-BTC'). Case-insensitive."
+          },
+          "state": {
+            "type": "STRING",
+            "description": "Filter by order state: 'pending', 'active', 'traded', 'canceled', 'canceled_and_traded'. Omit to return all orders."
+          },
+          "per": {
+            "type": "INTEGER",
+            "description": "Results per page (default: 20, max: 300)."
+          },
+          "page": {
+            "type": "INTEGER",
+            "description": "Page number (default: 1)."
+          }
+        },
+        "required": ["market_id"]
+      }
+    },
+    {
+      "name": "place_order",
+      "description": "Places a limit or market order on Buda.com. IMPORTANT: Requires confirmation_token='CONFIRM' to execute — any other value rejects without placing an order, preventing accidental execution. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. WARNING: Only use on locally-run instances — never on a publicly exposed server.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market identifier (e.g. 'BTC-CLP', 'ETH-BTC'). Case-insensitive."
+          },
+          "type": {
+            "type": "STRING",
+            "description": "Order side: 'Bid' to buy, 'Ask' to sell."
+          },
+          "price_type": {
+            "type": "STRING",
+            "description": "Order type: 'limit' places at a specific price, 'market' executes immediately at best available price."
+          },
+          "amount": {
+            "type": "NUMBER",
+            "description": "Order size in the market's base currency (e.g. BTC amount for BTC-CLP)."
+          },
+          "limit_price": {
+            "type": "NUMBER",
+            "description": "Limit price in quote currency. Required when price_type is 'limit'. For Bid orders: highest price you will pay. For Ask orders: lowest price you will accept."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to place the order. Any other value rejects the request."
+          }
+        },
+        "required": ["market_id", "type", "price_type", "amount", "confirmation_token"]
+      }
+    },
+    {
+      "name": "cancel_order",
+      "description": "Cancels an open order by numeric ID on Buda.com. IMPORTANT: Requires confirmation_token='CONFIRM' to execute — any other value rejects without cancelling. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "order_id": {
+            "type": "INTEGER",
+            "description": "The numeric ID of the order to cancel."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to cancel the order. Any other value rejects the request."
+          }
+        },
+        "required": ["order_id", "confirmation_token"]
+      }
     }
   ]
 }

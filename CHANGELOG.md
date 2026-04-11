@@ -7,6 +7,16 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.4.1] – 2026-04-11
+
+### Fixed
+
+- **`simulate_order`**: `taker_fee` returned by Buda API is already expressed as a percentage (`0.8` = 0.8%), not a decimal. Dividing by 100 before use gives correct fee calculations. Previously this caused fee_amount and total_cost to be ~100× too large.
+- Integration test (`test/run-all.ts`): added live checks for all 5 v1.4.0 tools; fixed field name `candles_available` (was `candles_used`).
+- Unit test mocks: updated `taker_fee` mock values from `"0.008"`/`"0.005"` to `"0.8"`/`"0.5"` to match the real Buda API format.
+
+---
+
 ## [1.4.0] – 2026-04-11
 
 ### Added

@@ -14,7 +14,7 @@ info:
     stdio server. Deploy locally with mcp-proxy:
       mcp-proxy --port 8000 -- npx -y @guiie/buda-mcp
     Or point `servers[0].url` at your hosted instance.
-  version: 1.3.0
+  version: 1.4.0
   contact:
     url: https://github.com/gtorreal/buda-mcp
 
