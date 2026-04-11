@@ -1,4 +1,3 @@
-import { createHmac } from "crypto";
 import { VERSION } from "./version.js";
 
 const BASE_URL = "https://www.buda.com/api/v2";
@@ -34,47 +33,9 @@ export class BudaClient {
   private static readonly MAX_RETRY_DELAY_MS = 30_000;
 
   private readonly baseUrl: string;
-  private readonly apiKey: string | undefined;
-  private readonly apiSecret: string | undefined;
 
-  constructor(
-    baseUrl: string = BASE_URL,
-    apiKey?: string,
-    apiSecret?: string,
-  ) {
+  constructor(baseUrl: string = BASE_URL) {
     this.baseUrl = baseUrl;
-    this.apiKey = apiKey;
-    this.apiSecret = apiSecret;
-  }
-
-  hasAuth(): boolean {
-    return Boolean(this.apiKey && this.apiSecret);
-  }
-
-  private _nonceCounter = 0;
-
-  private nonce(): string {
-    return String(Date.now() * 1000 + this._nonceCounter++);
-  }
-
-  private sign(method: string, pathWithQuery: string, body: string, nonce: string): string {
-    const encodedBody = body ? Buffer.from(body).toString("base64") : "";
-    const parts = [method, pathWithQuery];
-    if (encodedBody) parts.push(encodedBody);
-    parts.push(nonce);
-    const msg = parts.join(" ");
-    return createHmac("sha384", this.apiSecret!).update(msg).digest("hex");
-  }
-
-  private authHeaders(method: string, path: string, body?: string): Record<string, string> {
-    if (!this.hasAuth()) return {};
-    const nonce = this.nonce();
-    const signature = this.sign(method, path, body ?? "", nonce);
-    return {
-      "X-SBTC-APIKEY": this.apiKey!,
-      "X-SBTC-NONCE": nonce,
-      "X-SBTC-SIGNATURE": signature,
-    };
   }
 
   /**
@@ -159,11 +120,9 @@ export class BudaClient {
       }
     }
 
-    const urlPath = url.pathname + url.search;
     const headers: Record<string, string> = {
       Accept: "application/json",
       "User-Agent": `buda-mcp/${VERSION}`,
-      ...this.authHeaders("GET", urlPath),
     };
 
     const response = await this.fetchWithRetry(url, { headers }, path);
@@ -173,12 +132,10 @@ export class BudaClient {
   async post<T>(path: string, payload: unknown): Promise<T> {
     const url = new URL(`${this.baseUrl}${path}.json`);
     const bodyStr = JSON.stringify(payload);
-    const urlPath = url.pathname + url.search;
     const headers: Record<string, string> = {
       Accept: "application/json",
       "Content-Type": "application/json",
       "User-Agent": `buda-mcp/${VERSION}`,
-      ...this.authHeaders("POST", urlPath, bodyStr),
     };
 
     const response = await this.fetchWithRetry(
@@ -192,12 +149,10 @@ export class BudaClient {
   async put<T>(path: string, payload: unknown): Promise<T> {
     const url = new URL(`${this.baseUrl}${path}.json`);
     const bodyStr = JSON.stringify(payload);
-    const urlPath = url.pathname + url.search;
     const headers: Record<string, string> = {
       Accept: "application/json",
       "Content-Type": "application/json",
       "User-Agent": `buda-mcp/${VERSION}`,
-      ...this.authHeaders("PUT", urlPath, bodyStr),
     };
 
     const response = await this.fetchWithRetry(
@@ -217,11 +172,9 @@ export class BudaClient {
       }
     }
 
-    const urlPath = url.pathname + url.search;
     const headers: Record<string, string> = {
       Accept: "application/json",
       "User-Agent": `buda-mcp/${VERSION}`,
-      ...this.authHeaders("DELETE", urlPath),
     };
 
     const response = await this.fetchWithRetry(url, { method: "DELETE", headers }, path);

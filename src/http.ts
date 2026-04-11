@@ -5,7 +5,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { BudaClient } from "./client.js";
 import { MemoryCache, CACHE_TTL } from "./cache.js";
-import { safeTokenEqual, parseEnvInt, isTokenEntropyOk } from "./utils.js";
+import { parseEnvInt } from "./utils.js";
 import { requestContext } from "./request-context.js";
 import { VERSION } from "./version.js";
 import { validateMarketId } from "./validation.js";
@@ -20,30 +20,12 @@ import * as compareMarkets from "./tools/compare_markets.js";
 import * as priceHistory from "./tools/price_history.js";
 import * as arbitrage from "./tools/arbitrage.js";
 import * as marketSummary from "./tools/market_summary.js";
-import * as balances from "./tools/balances.js";
-import * as orders from "./tools/orders.js";
-import * as placeOrder from "./tools/place_order.js";
-import * as cancelOrder from "./tools/cancel_order.js";
 import * as simulateOrder from "./tools/simulate_order.js";
 import * as positionSize from "./tools/calculate_position_size.js";
 import * as marketSentiment from "./tools/market_sentiment.js";
 import * as technicalIndicators from "./tools/technical_indicators.js";
-import * as deadMansSwitch from "./tools/dead_mans_switch.js";
 import * as banks from "./tools/banks.js";
-import * as account from "./tools/account.js";
-import * as balance from "./tools/balance.js";
-import * as orderLookup from "./tools/order_lookup.js";
-import * as networkFees from "./tools/fees.js";
-import * as deposits from "./tools/deposits.js";
-import * as withdrawals from "./tools/withdrawals.js";
-import * as receiveAddresses from "./tools/receive_addresses.js";
-import * as remittances from "./tools/remittances.js";
-import * as remittanceRecipients from "./tools/remittance_recipients.js";
 import * as quotation from "./tools/quotation.js";
-import * as cancelAllOrders from "./tools/cancel_all_orders.js";
-import * as cancelOrderByClientId from "./tools/cancel_order_by_client_id.js";
-import * as batchOrders from "./tools/batch_orders.js";
-import * as lightning from "./tools/lightning.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
 let PORT: number;
@@ -65,32 +47,11 @@ try {
   process.exit(1);
 }
 
-const client = new BudaClient(
-  undefined,
-  process.env.BUDA_API_KEY,
-  process.env.BUDA_API_SECRET,
-);
-
-const authEnabled = client.hasAuth();
-
-// When auth credentials are set but no TLS-terminating proxy is declared
-// (TRUST_PROXY_HOPS=0), the server may be exposed over plain HTTP. That
-// would transmit BUDA_API_KEY, BUDA_API_SECRET, and MCP_AUTH_TOKEN in
-// cleartext. Warn loudly so self-hosters on raw VPS instances notice.
-// Set SKIP_TLS_CHECK=true to suppress (e.g. for localhost development).
-if (authEnabled && TRUST_PROXY_HOPS === 0 && process.env.SKIP_TLS_CHECK !== "true") {
-  console.warn(
-    "[buda-mcp] WARNING: Auth credentials are set but TRUST_PROXY_HOPS=0.\n" +
-    "  No TLS-terminating proxy is declared in front of this server.\n" +
-    "  Running over plain HTTP exposes your API key and secret to network interception.\n" +
-    "  Deploy behind a TLS proxy (Railway, Nginx, Caddy) or set SKIP_TLS_CHECK=true\n" +
-    "  to suppress this warning (e.g. for localhost development).",
-  );
-}
+const client = new BudaClient();
 
 // Schemas for the Smithery server-card — assembled from the same definitions used in register().
 // Adding a new tool only requires exporting its toolSchema; no changes needed here.
-const PUBLIC_TOOL_SCHEMAS = [
+const TOOL_SCHEMAS = [
   markets.toolSchema,
   ticker.toolSchema,
   orderbook.toolSchema,
@@ -107,39 +68,6 @@ const PUBLIC_TOOL_SCHEMAS = [
   marketSentiment.toolSchema,
   technicalIndicators.toolSchema,
   banks.toolSchema,
-];
-
-const AUTH_TOOL_SCHEMAS = [
-  balances.toolSchema,
-  orders.toolSchema,
-  placeOrder.toolSchema,
-  cancelOrder.toolSchema,
-  deadMansSwitch.toolSchema,
-  deadMansSwitch.renewToolSchema,
-  deadMansSwitch.disarmToolSchema,
-  account.toolSchema,
-  balance.toolSchema,
-  orderLookup.getOrderToolSchema,
-  orderLookup.getOrderByClientIdToolSchema,
-  networkFees.toolSchema,
-  deposits.getDepositHistoryToolSchema,
-  withdrawals.getWithdrawalHistoryToolSchema,
-  receiveAddresses.listReceiveAddressesToolSchema,
-  receiveAddresses.getReceiveAddressToolSchema,
-  remittances.listRemittancesToolSchema,
-  remittances.getRemittanceToolSchema,
-  remittances.quoteRemittanceToolSchema,
-  remittances.acceptRemittanceQuoteToolSchema,
-  remittanceRecipients.listToolSchema,
-  remittanceRecipients.getToolSchema,
-  receiveAddresses.createReceiveAddressToolSchema,
-  cancelAllOrders.toolSchema,
-  cancelOrderByClientId.toolSchema,
-  batchOrders.toolSchema,
-  withdrawals.createWithdrawalToolSchema,
-  deposits.createFiatDepositToolSchema,
-  lightning.lightningWithdrawalToolSchema,
-  lightning.createLightningInvoiceToolSchema,
 ];
 
 function createServer(): McpServer {
@@ -164,27 +92,6 @@ function createServer(): McpServer {
   marketSentiment.register(server, client, reqCache);
   technicalIndicators.register(server, client);
   banks.register(server, client, reqCache);
-
-  if (authEnabled) {
-    balances.register(server, client);
-    orders.register(server, client);
-    placeOrder.register(server, client, "http");
-    cancelOrder.register(server, client, "http");
-    deadMansSwitch.register(server, client, "http");
-    account.register(server, client);
-    balance.register(server, client);
-    orderLookup.register(server, client);
-    networkFees.register(server, client);
-    deposits.register(server, client, "http");
-    withdrawals.register(server, client, "http");
-    receiveAddresses.register(server, client, "http");
-    remittances.register(server, client, "http");
-    remittanceRecipients.register(server, client);
-    cancelAllOrders.register(server, client, "http");
-    cancelOrderByClientId.register(server, client, "http");
-    batchOrders.register(server, client, "http");
-    lightning.register(server, client, "http");
-  }
 
   // MCP Resources
   server.resource(
@@ -270,33 +177,6 @@ app.use(helmet());
 app.set("trust proxy", TRUST_PROXY_HOPS);
 app.use(express.json({ limit: "10kb" }));
 
-const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
-
-if (authEnabled && !MCP_AUTH_TOKEN) {
-  console.error(
-    "[buda-mcp] FATAL: BUDA_API_KEY/BUDA_API_SECRET are set but MCP_AUTH_TOKEN is not.\n" +
-    "  The /mcp endpoint would be publicly accessible with full account access.\n" +
-    "  Set MCP_AUTH_TOKEN to a long random secret, or run in stdio mode instead.",
-  );
-  process.exit(1);
-}
-
-if (MCP_AUTH_TOKEN && MCP_AUTH_TOKEN.length < 32) {
-  console.error(
-    "[buda-mcp] FATAL: MCP_AUTH_TOKEN has fewer than 32 characters.\n" +
-    "  Use a long random secret (e.g. openssl rand -hex 32).",
-  );
-  process.exit(1);
-}
-
-if (MCP_AUTH_TOKEN && !isTokenEntropyOk(MCP_AUTH_TOKEN)) {
-  console.error(
-    "[buda-mcp] FATAL: MCP_AUTH_TOKEN has insufficient entropy (Shannon entropy below 3.5 bits/char).\n" +
-    "  Use a high-entropy random secret (e.g. openssl rand -hex 32).",
-  );
-  process.exit(1);
-}
-
 let rateLimitMax: number;
 try {
   rateLimitMax = parseEnvInt(process.env.MCP_RATE_LIMIT, 120, 1, 10_000, "MCP_RATE_LIMIT");
@@ -321,23 +201,6 @@ const staticRateLimiter = rateLimit({
   message: { error: "Too many requests.", code: "RATE_LIMITED" },
 });
 
-function mcpAuthMiddleware(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction,
-): void {
-  if (!MCP_AUTH_TOKEN) {
-    next();
-    return;
-  }
-  const auth = req.headers.authorization ?? "";
-  if (!safeTokenEqual(auth, `Bearer ${MCP_AUTH_TOKEN}`)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  next();
-}
-
 // Health check for Railway / uptime monitors.
 // version is intentionally omitted to avoid fingerprinting by unauthenticated callers.
 app.get("/health", staticRateLimiter, (_req, res) => {
@@ -346,13 +209,11 @@ app.get("/health", staticRateLimiter, (_req, res) => {
 
 // Smithery static server card — assembled programmatically from tool definitions.
 // Adding a new tool only requires exporting its toolSchema; this handler needs no changes.
-// When auth is enabled, the server card is gated behind the same bearer token as /mcp
-// to avoid leaking the full tool schema to unauthenticated callers.
-app.get("/.well-known/mcp/server-card.json", staticRateLimiter, mcpAuthMiddleware, (_req, res) => {
+app.get("/.well-known/mcp/server-card.json", staticRateLimiter, (_req, res) => {
   res.json({
     serverInfo: { name: "buda-mcp", version: VERSION },
-    authentication: { required: authEnabled },
-    tools: [...PUBLIC_TOOL_SCHEMAS, ...(authEnabled ? AUTH_TOOL_SCHEMAS : [])],
+    authentication: { required: false },
+    tools: TOOL_SCHEMAS,
     resources: [
       { uri: "buda://markets", name: "All Buda.com markets", mimeType: "application/json" },
       { uri: "buda://ticker/{market}", name: "Ticker for a specific market", mimeType: "application/json" },
@@ -363,7 +224,7 @@ app.get("/.well-known/mcp/server-card.json", staticRateLimiter, mcpAuthMiddlewar
 });
 
 // Stateless StreamableHTTP — new server instance per request (no session state needed)
-app.post("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (req, res) => {
+app.post("/mcp", mcpRateLimiter, async (req, res) => {
   await requestContext.run({ ip: req.ip }, async () => {
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
@@ -380,7 +241,7 @@ app.post("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (req, res) => {
 });
 
 // SSE upgrade for clients that prefer streaming
-app.get("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (req, res) => {
+app.get("/mcp", mcpRateLimiter, async (req, res) => {
   await requestContext.run({ ip: req.ip }, async () => {
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
@@ -396,7 +257,7 @@ app.get("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (req, res) => {
   });
 });
 
-app.delete("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (_req, res) => {
+app.delete("/mcp", mcpRateLimiter, async (_req, res) => {
   res.status(405).json({ error: "Sessions not supported (stateless server)" });
 });
 
@@ -404,5 +265,4 @@ app.listen(PORT, () => {
   console.log(`buda-mcp HTTP server listening on port ${PORT}`);
   console.log(`  MCP endpoint:  http://localhost:${PORT}/mcp`);
   console.log(`  Health check:  http://localhost:${PORT}/health`);
-  console.log(`  Auth mode:     ${authEnabled ? "authenticated" : "public (no credentials)"}`);
 });

@@ -1,6 +1,6 @@
-# Publish Checklist — buda-mcp v1.5.4
+# Publish Checklist — buda-mcp v2.0.0
 
-Steps to publish `v1.5.4` to npm, the MCP registry, and notify community directories.
+Steps to publish `v2.0.0` to npm, the MCP registry, and notify community directories.
 
 ---
 
@@ -8,7 +8,7 @@ Steps to publish `v1.5.4` to npm, the MCP registry, and notify community directo
 
 ```bash
 # Confirm version
-node -e "console.log(require('./package.json').version)"  # should print 1.5.4
+node -e "console.log(require('./package.json').version)"  # should print 2.0.0
 
 # Build and test
 npm run build
@@ -16,10 +16,6 @@ npm test
 
 # Sync server.json version (already done, but confirm)
 npm run sync-version
-
-# Verify no credentials are logged (audit)
-grep -r "apiKey\|apiSecret\|BUDA_API" dist/ --include="*.js" | grep -v "process.env\|hasAuth\|X-SBTC-APIKEY\|authHeaders\|constructor"
-# Should return empty or only header name strings — never credential values
 ```
 
 ---
@@ -37,9 +33,13 @@ Verify: https://www.npmjs.com/package/@guiie/buda-mcp
 
 ## 3. GitHub release
 
-Tag and release already created via `gh release create v1.5.4`. Verify at:
+Create tag and release:
 
-https://github.com/gtorreal/buda-mcp/releases/tag/v1.5.4
+```bash
+gh release create v2.0.0 --title "v2.0.0 — Public-only release" --notes "Removed all authenticated/private API tools. This version requires no API key and exposes only Buda.com public market data endpoints."
+```
+
+Verify at: https://github.com/gtorreal/buda-mcp/releases/tag/v2.0.0
 
 ---
 
@@ -64,18 +64,22 @@ Verify: https://smithery.ai/server/@guiie/buda-mcp
 **Email/message template:**
 
 ```
-Subject: [Update] buda-mcp v1.5.3 — Security hardening (third pass)
+Subject: [Update] buda-mcp v2.0.0 — Public-only release (no API key required)
 
 Hi mcp.so team,
 
-I've released v1.5.3 of buda-mcp (@guiie/buda-mcp on npm).
+I've released v2.0.0 of buda-mcp (@guiie/buda-mcp on npm).
 
-Key changes (security hardening, no new tools):
-- Upstream API errors no longer forwarded to MCP clients (generic messages only, detail logged server-side)
-- Audit log transport field corrected for HTTP (9 handlers previously showed "stdio" for HTTP traffic)
-- HTTP security headers via helmet (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, etc.)
-- Request body size limit enforced (10kb) on /mcp endpoint
-- Rate limiting extended to /health and /.well-known/mcp/server-card.json endpoints
+This is a major release that removes all authenticated/private API tools.
+The server now works exclusively with Buda.com's public endpoints — no account
+or API key required.
+
+16 public tools included:
+- get_market_summary, get_markets, get_ticker, get_orderbook, get_trades
+- get_market_volume, get_spread, compare_markets, get_price_history
+- get_arbitrage_opportunities, simulate_order, calculate_position_size
+- get_market_sentiment, get_technical_indicators, get_real_quotation
+- get_available_banks
 
 Links:
 - npm: https://www.npmjs.com/package/@guiie/buda-mcp
@@ -94,23 +98,21 @@ Thank you!
 **Message template:**
 
 ```
-Subject: [Update] buda-mcp v1.5.3
+Subject: [Update] buda-mcp v2.0.0
 
 Hi Glama team,
 
-buda-mcp has been updated to v1.5.3.
+buda-mcp has been updated to v2.0.0.
 
 Package: @guiie/buda-mcp (npm)
 Registry: io.github.gtorreal/buda-mcp (MCP Registry)
-Version: 1.5.3
+Version: 2.0.0
 
-Changes (security hardening, third pass):
-- Upstream API errors no longer forwarded to MCP clients
-- Audit log transport field corrected for HTTP (9 handlers)
-- HTTP security headers via helmet
-- Request body size limit (10kb) on /mcp endpoint
-- Rate limiting on /health and server-card endpoints
-- 184 unit tests
+Changes (public-only release):
+- Removed all 18 authenticated tool files (orders, balances, withdrawals, etc.)
+- No API key or account required
+- 16 public tools covering market data, analysis, and simulation
+- 100 unit tests
 
 Quick start:
   npx @guiie/buda-mcp
@@ -125,45 +127,19 @@ Thank you!
 
 ## 8. Post-publish verification
 
-- [ ] `npx @guiie/buda-mcp@1.5.3` starts successfully
-- [ ] `npm info @guiie/buda-mcp version` returns `1.5.3`
-- [ ] GitHub release tag `v1.5.3` is visible
-- [ ] MCP Registry entry reflects v1.5.3
-- [ ] Smithery server card lists all tools
-- [ ] `GET /health` returns `"version":"1.5.3"` on Railway deployment
-- [ ] `GET /health` responds with `X-Content-Type-Options: nosniff` header (helmet active)
-- [ ] `GET /health` rate-limited at 60 req/min
-- [ ] Error responses from the MCP server show generic message (not raw Buda API detail)
-- [ ] Audit log shows `"transport":"http"` for HTTP-triggered destructive tools
-- [ ] Pending: manually apply CI binary pinning to `publish.yml` (see CHANGELOG v1.5.3)
+- [ ] `npx @guiie/buda-mcp@2.0.0` starts successfully
+- [ ] `npm info @guiie/buda-mcp version` returns `2.0.0`
+- [ ] GitHub release tag `v2.0.0` is visible
+- [ ] MCP Registry entry reflects v2.0.0
+- [ ] Smithery server card lists all 16 tools (no auth tools)
+- [ ] `GET /health` responds on Railway deployment
+- [ ] `GET /.well-known/mcp/server-card.json` shows `authentication.required: false`
 - [ ] mcp.so listing updated
 - [ ] Glama.ai listing updated
 
 ---
 
----
-
-## 9. Pending manual fix — CI binary pinning
-
-Edit `.github/workflows/publish.yml`, replace the `Install mcp-publisher` step with:
-
-```yaml
-- name: Install mcp-publisher
-  env:
-    MCP_PUBLISHER_VERSION: "v1.5.0"
-    MCP_PUBLISHER_SHA256: "79bbb73ba048c5906034f73ef6286d7763bd53cf368ea0b358fc593ed360cbd5"
-  run: |
-    curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" \
-      -o mcp-publisher.tar.gz
-    echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum --check
-    tar xz -f mcp-publisher.tar.gz mcp-publisher
-    sudo mv mcp-publisher /usr/local/bin/
-```
-
-SHA256 verified against GitHub release `v1.5.0` on 2026-04-11. Update both values when bumping `mcp-publisher`.
-
----
-
 ## ARCHIVED: previous checklists
 
-See git tags `v1.5.0`, `v1.5.1`, `v1.4.0`, `v1.4.1`, `v1.4.2` for previous release notes and verification steps.
+See git tags `v1.5.6`, `v1.5.0`, `v1.4.0`, `v1.4.1` for previous release notes and verification steps.
+The full version with authenticated tools is preserved in the `with-auth` branch.

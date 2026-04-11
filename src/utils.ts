@@ -1,38 +1,4 @@
-import { timingSafeEqual } from "crypto";
 import type { Amount, OhlcvCandle } from "./types.js";
-
-/**
- * Constant-time string comparison to prevent timing attacks on bearer tokens.
- * Both strings are written into equal-length buffers before comparing so that
- * neither token length nor content can be inferred from execution time.
- */
-export function safeTokenEqual(a: string, b: string): boolean {
-  const aByteLen = Buffer.byteLength(a);
-  const bByteLen = Buffer.byteLength(b);
-  const maxLen = Math.max(aByteLen, bByteLen);
-  const aBuf = Buffer.alloc(maxLen);
-  const bBuf = Buffer.alloc(maxLen);
-  aBuf.write(a);
-  bBuf.write(b);
-  return timingSafeEqual(aBuf, bBuf) && aByteLen === bByteLen;
-}
-
-/**
- * Returns true when the token has sufficient Shannon entropy for use as a bearer secret.
- * Requires at least 3.5 bits per character, which accepts any `openssl rand -hex 32`
- * output (~4 bits/char) while rejecting repeating patterns and keyboard walks
- * that merely have 8+ distinct characters.
- */
-export function isTokenEntropyOk(token: string): boolean {
-  const len = token.length;
-  const freq = new Map<string, number>();
-  for (const ch of token) freq.set(ch, (freq.get(ch) ?? 0) + 1);
-  const entropy = Array.from(freq.values()).reduce((sum, count) => {
-    const p = count / len;
-    return sum - p * Math.log2(p);
-  }, 0);
-  return entropy >= 3.5;
-}
 
 /**
  * Parses a raw string (from an environment variable) as an integer within [min, max].

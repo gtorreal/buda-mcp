@@ -7,6 +7,27 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.0] — 2026-04-11
+
+### Breaking Changes
+
+- **Public-only release.** All 18 authenticated/private API tools have been removed. No API key or `BUDA_API_SECRET` is accepted. This version works exclusively with Buda.com's public endpoints.
+- Removed tools: `get_account_info`, `get_balance`, `get_balances`, `get_orders`, `get_order`, `get_order_by_client_id`, `place_order`, `cancel_order`, `cancel_all_orders`, `cancel_order_by_client_id`, `place_batch_orders`, `get_network_fees`, `get_deposit_history`, `create_fiat_deposit`, `get_withdrawal_history`, `create_withdrawal`, `list_receive_addresses`, `get_receive_address`, `create_receive_address`, `list_remittances`, `get_remittance`, `quote_remittance`, `accept_remittance_quote`, `list_remittance_recipients`, `get_remittance_recipient`, `lightning_withdrawal`, `create_lightning_invoice`, `schedule_cancel_all`, `renew_cancel_timer`, `disarm_cancel_timer`.
+- `BudaClient` constructor no longer accepts `apiKey`/`apiSecret` parameters.
+- HTTP server no longer requires or checks `MCP_AUTH_TOKEN`, `BUDA_API_KEY`, or `BUDA_API_SECRET`.
+- `validateCryptoAddress` removed from `src/validation.ts`.
+- Private-only types removed from `src/types.ts`.
+
+### Retained (16 public tools)
+
+`get_markets`, `get_ticker`, `get_orderbook`, `get_trades`, `get_market_volume`, `get_spread`, `compare_markets`, `get_price_history`, `get_arbitrage_opportunities`, `get_market_summary`, `simulate_order`, `calculate_position_size`, `get_market_sentiment`, `get_technical_indicators`, `get_real_quotation`, `get_available_banks`.
+
+### Notes
+
+The full version with authenticated tools is preserved in the `with-auth` branch.
+
+---
+
 ## [Unreleased]
 
 ### Security

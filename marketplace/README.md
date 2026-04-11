@@ -1,4 +1,4 @@
-# Marketplace Submission Assets — v1.5.1
+# Marketplace Submission Assets — v2.0.0
 
 Ready-to-use assets for submitting buda-mcp to every major AI marketplace.
 Replace `gtorreal` / `gtorreal` with your actual handles before submitting.

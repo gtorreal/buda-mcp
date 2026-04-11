@@ -1,5 +1,5 @@
 {
-  "_comment": "Gemini function declarations for buda-mcp v1.5.0. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
+  "_comment": "Gemini function declarations for buda-mcp v2.0.0. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
   "functionDeclarations": [
     {
       "name": "get_markets",
@@ -26,7 +26,9 @@
             "description": "Market identifier such as 'BTC-CLP', 'ETH-COP', or 'ETH-BTC'. Case-insensitive."
           }
         },
-        "required": ["market_id"]
+        "required": [
+          "market_id"
+        ]
       }
     },
     {
@@ -44,7 +46,9 @@
             "description": "Maximum number of price levels to return per side (bids and asks). Defaults to all levels if omitted."
           }
         },
-        "required": ["market_id"]
+        "required": [
+          "market_id"
+        ]
       }
     },
     {
@@ -66,7 +70,9 @@
             "description": "Unix timestamp in seconds. When provided, returns trades that occurred before this timestamp, enabling pagination through historical data."
           }
         },
-        "required": ["market_id"]
+        "required": [
+          "market_id"
+        ]
       }
     },
     {
@@ -80,7 +86,9 @@
             "description": "Market identifier such as 'BTC-CLP', 'ETH-COP', or 'ETH-BTC'. Case-insensitive."
           }
         },
-        "required": ["market_id"]
+        "required": [
+          "market_id"
+        ]
       }
     },
     {
@@ -94,7 +102,9 @@
             "description": "Market identifier such as 'BTC-CLP', 'ETH-COP', or 'ETH-BTC'. Case-insensitive."
           }
         },
-        "required": ["market_id"]
+        "required": [
+          "market_id"
+        ]
       }
     },
     {
@@ -108,12 +118,14 @@
             "description": "Base currency to compare across all available markets. Examples: 'BTC', 'ETH', 'XRP'. Case-insensitive."
           }
         },
-        "required": ["base_currency"]
+        "required": [
+          "base_currency"
+        ]
       }
     },
     {
       "name": "get_price_history",
-      "description": "IMPORTANT: Candles are aggregated client-side from raw trades (Buda has no native candlestick endpoint) — fetching more trades via the 'limit' parameter gives deeper history but slower responses. Returns OHLCV candles (open/high/low/close as floats in quote currency; volume as float in base currency) for periods 1h, 4h, or 1d. Candle timestamps are UTC bucket boundaries. Example: 'Show me the hourly BTC-CLP price chart for the past 24 hours.'",
+      "description": "IMPORTANT: Candles are aggregated client-side from raw trades (Buda has no native candlestick endpoint) \u2014 fetching more trades via the 'limit' parameter gives deeper history but slower responses. Returns OHLCV candles (open/high/low/close as floats in quote currency; volume as float in base currency) for periods 1h, 4h, or 1d. Candle timestamps are UTC bucket boundaries. Example: 'Show me the hourly BTC-CLP price chart for the past 24 hours.'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -130,12 +142,14 @@
             "description": "Number of raw trades to fetch before aggregation. Default is 100, maximum is 1000. More trades = deeper history."
           }
         },
-        "required": ["market_id"]
+        "required": [
+          "market_id"
+        ]
       }
     },
     {
       "name": "get_market_summary",
-      "description": "One-call summary of everything relevant about a market: last price, best bid/ask, spread %, 24h volume, 24h and 7d price change, and a liquidity_rating ('high' / 'medium' / 'low' based on spread thresholds: < 0.3% = high, 0.3–1% = medium, > 1% = low). All prices and volumes are floats. Best first tool to call when a user asks about any specific market. Example: 'Give me a complete overview of the BTC-CLP market right now.'",
+      "description": "One-call summary of everything relevant about a market: last price, best bid/ask, spread %, 24h volume, 24h and 7d price change, and a liquidity_rating ('high' / 'medium' / 'low' based on spread thresholds: < 0.3% = high, 0.3\u20131% = medium, > 1% = low). All prices and volumes are floats. Best first tool to call when a user asks about any specific market. Example: 'Give me a complete overview of the BTC-CLP market right now.'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -144,12 +158,14 @@
             "description": "Market identifier such as 'BTC-CLP', 'ETH-COP', or 'BTC-PEN'. Case-insensitive."
           }
         },
-        "required": ["market_id"]
+        "required": [
+          "market_id"
+        ]
       }
     },
     {
       "name": "get_arbitrage_opportunities",
-      "description": "Detects cross-country price discrepancies for a given asset across Buda's CLP, COP, and PEN markets, normalized to USDC. Fetches all relevant tickers, converts each local price to USDC using the current USDC-CLP / USDC-COP / USDC-PEN rates, then computes pairwise discrepancy percentages. Results above threshold_pct are returned sorted by opportunity size. Note: Buda taker fee is 0.8% per leg (~1.6% round-trip) — always deduct fees before acting on any discrepancy. Example: 'Is there an arbitrage opportunity for BTC between Chile and Peru right now?'",
+      "description": "Detects cross-country price discrepancies for a given asset across Buda's CLP, COP, and PEN markets, normalized to USDC. Fetches all relevant tickers, converts each local price to USDC using the current USDC-CLP / USDC-COP / USDC-PEN rates, then computes pairwise discrepancy percentages. Results above threshold_pct are returned sorted by opportunity size. Note: Buda taker fee is 0.8% per leg (~1.6% round-trip) \u2014 always deduct fees before acting on any discrepancy. Example: 'Is there an arbitrage opportunity for BTC between Chile and Peru right now?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -162,12 +178,14 @@
             "description": "Minimum price discrepancy percentage to include in results (default: 0.5). Buda taker fee is 0.8% per leg, so a round-trip requires > 1.6% to be profitable."
           }
         },
-        "required": ["base_currency"]
+        "required": [
+          "base_currency"
+        ]
       }
     },
     {
       "name": "simulate_order",
-      "description": "Simulates a buy or sell order on Buda.com using live ticker data — no order is placed. Returns estimated fill price, fee, total cost, and slippage vs mid-price. Omit 'price' for a market order simulation; supply 'price' for a limit order simulation. All outputs are labelled simulation: true. Example: 'How much would it cost to buy 0.01 BTC on BTC-CLP right now?'",
+      "description": "Simulates a buy or sell order on Buda.com using live ticker data \u2014 no order is placed. Returns estimated fill price, fee, total cost, and slippage vs mid-price. Omit 'price' for a market order simulation; supply 'price' for a limit order simulation. All outputs are labelled simulation: true. Example: 'How much would it cost to buy 0.01 BTC on BTC-CLP right now?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -188,12 +206,16 @@
             "description": "Limit price in quote currency. Omit for a market order simulation."
           }
         },
-        "required": ["market_id", "side", "amount"]
+        "required": [
+          "market_id",
+          "side",
+          "amount"
+        ]
       }
     },
     {
       "name": "calculate_position_size",
-      "description": "Calculates position size based on capital, risk tolerance, entry price, and stop-loss. Determines units so that a stop-loss hit costs exactly risk_pct% of capital. Fully client-side — no API call. Example: 'How many BTC can I buy with 1M CLP at 2% risk, entry 80M, stop 78M?'",
+      "description": "Calculates position size based on capital, risk tolerance, entry price, and stop-loss. Determines units so that a stop-loss hit costs exactly risk_pct% of capital. Fully client-side \u2014 no API call. Example: 'How many BTC can I buy with 1M CLP at 2% risk, entry 80M, stop 78M?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -207,7 +229,7 @@
           },
           "risk_pct": {
             "type": "NUMBER",
-            "description": "Percentage of capital to risk on this trade (0.1–10)."
+            "description": "Percentage of capital to risk on this trade (0.1\u201310)."
           },
           "entry_price": {
             "type": "NUMBER",
@@ -218,12 +240,18 @@
             "description": "Stop-loss price in quote currency. Must be below entry for buys, above for sells."
           }
         },
-        "required": ["market_id", "capital", "risk_pct", "entry_price", "stop_loss_price"]
+        "required": [
+          "market_id",
+          "capital",
+          "risk_pct",
+          "entry_price",
+          "stop_loss_price"
+        ]
       }
     },
     {
       "name": "get_market_sentiment",
-      "description": "Computes a composite sentiment score (−100 to +100) for a Buda.com market based on 24h price variation (40%), volume vs 7-day average (35%), and bid/ask spread vs baseline (25%). Returns score, label (bearish/neutral/bullish), and full component breakdown. Example: 'Is the BTC-CLP market currently bullish or bearish?'",
+      "description": "Computes a composite sentiment score (\u2212100 to +100) for a Buda.com market based on 24h price variation (40%), volume vs 7-day average (35%), and bid/ask spread vs baseline (25%). Returns score, label (bearish/neutral/bullish), and full component breakdown. Example: 'Is the BTC-CLP market currently bullish or bearish?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -232,12 +260,14 @@
             "description": "Market identifier such as 'BTC-CLP', 'ETH-BTC', or 'BTC-USDT'. Case-insensitive."
           }
         },
-        "required": ["market_id"]
+        "required": [
+          "market_id"
+        ]
       }
     },
     {
       "name": "get_technical_indicators",
-      "description": "Computes RSI (14), MACD (12/26/9), Bollinger Bands (20, 2σ), SMA 20, and SMA 50 from Buda trade history. No external libraries. Returns latest indicator values and signal interpretations. Returns a structured warning if fewer than 50 candles are available. Example: 'Is BTC-CLP RSI overbought on the 4-hour chart?'",
+      "description": "Computes RSI (14), MACD (12/26/9), Bollinger Bands (20, 2\u03c3), SMA 20, and SMA 50 from Buda trade history. No external libraries. Returns latest indicator values and signal interpretations. Returns a structured warning if fewer than 50 candles are available. Example: 'Is BTC-CLP RSI overbought on the 4-hour chart?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -251,60 +281,12 @@
           },
           "limit": {
             "type": "INTEGER",
-            "description": "Number of raw trades to fetch (500–1000). Default is 500."
+            "description": "Number of raw trades to fetch (500\u20131000). Default is 500."
           }
         },
-        "required": ["market_id"]
-      }
-    },
-    {
-      "name": "schedule_cancel_all",
-      "description": "WARNING: timer state is lost on server restart. Use only on locally-run instances. Arms an in-memory dead man's switch: if not renewed within ttl_seconds, all open orders for the market are automatically cancelled. Requires confirmation_token='CONFIRM'. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "market_id": {
-            "type": "STRING",
-            "description": "Market ID to protect (e.g. 'BTC-CLP')."
-          },
-          "ttl_seconds": {
-            "type": "INTEGER",
-            "description": "Seconds before all orders are cancelled if not renewed (10–300)."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Must equal exactly 'CONFIRM' (case-sensitive) to arm the switch."
-          }
-        },
-        "required": ["market_id", "ttl_seconds", "confirmation_token"]
-      }
-    },
-    {
-      "name": "renew_cancel_timer",
-      "description": "Resets the dead man's switch TTL for a market, preventing automatic order cancellation. No confirmation required. Requires an active timer set by schedule_cancel_all. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "market_id": {
-            "type": "STRING",
-            "description": "Market ID whose timer should be renewed (e.g. 'BTC-CLP')."
-          }
-        },
-        "required": ["market_id"]
-      }
-    },
-    {
-      "name": "disarm_cancel_timer",
-      "description": "Disarms the dead man's switch for a market without cancelling any orders. No confirmation required. Safe to call even if no timer is active. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "market_id": {
-            "type": "STRING",
-            "description": "Market ID whose timer should be disarmed (e.g. 'BTC-CLP')."
-          }
-        },
-        "required": ["market_id"]
+        "required": [
+          "market_id"
+        ]
       }
     },
     {
@@ -318,7 +300,9 @@
             "description": "Fiat currency code (e.g. 'CLP', 'COP', 'PEN'). Case-insensitive."
           }
         },
-        "required": ["currency"]
+        "required": [
+          "currency"
+        ]
       }
     },
     {
@@ -344,531 +328,11 @@
             "description": "Optional limit price in quote currency."
           }
         },
-        "required": ["market_id", "type", "amount"]
-      }
-    },
-    {
-      "name": "get_account_info",
-      "description": "Returns the authenticated user's profile on Buda.com: email, display name, pubsub key, and monthly transacted amounts. Read-only. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {},
-        "required": []
-      }
-    },
-    {
-      "name": "get_balance",
-      "description": "Returns the balance for a single currency for the authenticated Buda.com account as a flat typed object. Includes total, available, frozen, and pending withdrawal amounts as floats with separate _currency fields. More efficient than get_balances when only one currency is needed. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'How much ETH do I have available?'",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "currency": {
-            "type": "STRING",
-            "description": "Currency code (e.g. 'BTC', 'ETH', 'CLP', 'USDC'). Case-insensitive."
-          }
-        },
-        "required": ["currency"]
-      }
-    },
-    {
-      "name": "get_order",
-      "description": "Fetch a single order by its numeric ID with full detail. All monetary amounts are floats with separate _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'What is the status of order 12345?'",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "order_id": {
-            "type": "INTEGER",
-            "description": "Numeric order ID."
-          }
-        },
-        "required": ["order_id"]
-      }
-    },
-    {
-      "name": "get_order_by_client_id",
-      "description": "Fetch a single order by the client-assigned string ID set at placement time. All monetary amounts are floats with _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "client_id": {
-            "type": "STRING",
-            "description": "Client-assigned string ID used when placing the order."
-          }
-        },
-        "required": ["client_id"]
-      }
-    },
-    {
-      "name": "get_network_fees",
-      "description": "Returns the deposit or withdrawal fee schedule for a given currency: fee name, flat amount, minimum, maximum, and percentage flag. Useful before initiating a withdrawal. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'What is the fee to withdraw ETH from Buda?'",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "currency": {
-            "type": "STRING",
-            "description": "Currency code (e.g. 'BTC', 'ETH', 'CLP'). Case-insensitive."
-          },
-          "type": {
-            "type": "STRING",
-            "description": "Fee direction: 'deposit' or 'withdrawal'."
-          }
-        },
-        "required": ["currency", "type"]
-      }
-    },
-    {
-      "name": "get_deposit_history",
-      "description": "Deposit history for a currency, optionally filtered by state and paginated. Amounts are floats with _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'Show my confirmed BTC deposits.'",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "currency": {
-            "type": "STRING",
-            "description": "Currency code (e.g. 'BTC', 'CLP'). Case-insensitive."
-          },
-          "state": {
-            "type": "STRING",
-            "description": "Filter by state: 'pending_info', 'pending', 'confirmed', 'anulled', 'retained'. Omit to return all."
-          },
-          "per": {
-            "type": "INTEGER",
-            "description": "Results per page (default 20, max 300)."
-          },
-          "page": {
-            "type": "INTEGER",
-            "description": "Page number (default 1)."
-          }
-        },
-        "required": ["currency"]
-      }
-    },
-    {
-      "name": "get_withdrawal_history",
-      "description": "Withdrawal history for a currency, optionally filtered by state and paginated. Amounts are floats with _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'Show my pending BTC withdrawals.'",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "currency": {
-            "type": "STRING",
-            "description": "Currency code (e.g. 'BTC', 'CLP'). Case-insensitive."
-          },
-          "state": {
-            "type": "STRING",
-            "description": "Filter by state: 'pending_signature', 'pending', 'confirmed', 'rejected', 'anulled'. Omit to return all."
-          },
-          "per": {
-            "type": "INTEGER",
-            "description": "Results per page (default 20, max 300)."
-          },
-          "page": {
-            "type": "INTEGER",
-            "description": "Page number (default 1)."
-          }
-        },
-        "required": ["currency"]
-      }
-    },
-    {
-      "name": "create_receive_address",
-      "description": "Generate a new crypto deposit (receive) address for a currency. Not idempotent — each call creates a new address. Crypto only. IMPORTANT: Requires confirmation_token='CONFIRM'. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "currency": {
-            "type": "STRING",
-            "description": "Crypto currency code (e.g. 'BTC', 'ETH'). Case-insensitive."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Must equal exactly 'CONFIRM' (case-sensitive) to generate a new address."
-          }
-        },
-        "required": ["currency", "confirmation_token"]
-      }
-    },
-    {
-      "name": "list_receive_addresses",
-      "description": "List all receive (deposit) addresses for a currency. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "currency": {
-            "type": "STRING",
-            "description": "Crypto currency code (e.g. 'BTC', 'ETH'). Case-insensitive."
-          }
-        },
-        "required": ["currency"]
-      }
-    },
-    {
-      "name": "get_receive_address",
-      "description": "Fetch a specific receive (deposit) address by its numeric ID. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "currency": {
-            "type": "STRING",
-            "description": "Crypto currency code (e.g. 'BTC', 'ETH'). Case-insensitive."
-          },
-          "id": {
-            "type": "INTEGER",
-            "description": "Numeric receive address ID."
-          }
-        },
-        "required": ["currency", "id"]
-      }
-    },
-    {
-      "name": "list_remittance_recipients",
-      "description": "List saved remittance recipients (bank accounts) for fiat transfers, with optional pagination. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "per": {
-            "type": "INTEGER",
-            "description": "Results per page (default 20, max 300)."
-          },
-          "page": {
-            "type": "INTEGER",
-            "description": "Page number (default 1)."
-          }
-        },
-        "required": []
-      }
-    },
-    {
-      "name": "get_remittance_recipient",
-      "description": "Fetch a single saved remittance recipient by ID. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "id": {
-            "type": "INTEGER",
-            "description": "Numeric recipient ID."
-          }
-        },
-        "required": ["id"]
-      }
-    },
-    {
-      "name": "list_remittances",
-      "description": "List past fiat remittance transfers with optional pagination. Amounts are floats with _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "per": {
-            "type": "INTEGER",
-            "description": "Results per page (default 20, max 300)."
-          },
-          "page": {
-            "type": "INTEGER",
-            "description": "Page number (default 1)."
-          }
-        },
-        "required": []
-      }
-    },
-    {
-      "name": "quote_remittance",
-      "description": "Create a time-limited remittance quote using the live FX rate. Does not transfer funds. Follow with accept_remittance_quote to execute. Not idempotent — each call creates a new remittance record. IMPORTANT: Requires confirmation_token='CONFIRM'. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "currency": {
-            "type": "STRING",
-            "description": "Fiat currency to remit (e.g. 'CLP', 'COP', 'PEN')."
-          },
-          "amount": {
-            "type": "NUMBER",
-            "description": "Amount to remit (positive number)."
-          },
-          "recipient_id": {
-            "type": "INTEGER",
-            "description": "Saved remittance recipient ID."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Must equal exactly 'CONFIRM' (case-sensitive) to create the quote."
-          }
-        },
-        "required": ["currency", "amount", "recipient_id", "confirmation_token"]
-      }
-    },
-    {
-      "name": "accept_remittance_quote",
-      "description": "Accept and execute a previously quoted remittance. IMPORTANT: Irreversible — funds are transferred immediately. Requires confirmation_token='CONFIRM'. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "id": {
-            "type": "INTEGER",
-            "description": "Remittance quote ID to accept."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Must equal exactly 'CONFIRM' (case-sensitive) to execute the remittance."
-          }
-        },
-        "required": ["id", "confirmation_token"]
-      }
-    },
-    {
-      "name": "get_remittance",
-      "description": "Fetch the status and details of a single remittance by ID. Amounts are floats with _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "id": {
-            "type": "INTEGER",
-            "description": "Remittance ID."
-          }
-        },
-        "required": ["id"]
-      }
-    },
-    {
-      "name": "get_balances",
-      "description": "Returns all currency balances for the authenticated Buda.com account as flat typed objects. Each currency entry includes total amount, available amount (not frozen), frozen amount, and pending withdrawal amount — all as floats with separate _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'How much BTC do I have available to trade right now?'",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {},
-        "required": []
-      }
-    },
-    {
-      "name": "get_orders",
-      "description": "Returns orders for a given Buda.com market as flat typed objects. All monetary amounts are floats with separate _currency fields (e.g. amount + amount_currency). Filterable by state: pending, active, traded, canceled, canceled_and_traded. Supports pagination via per and page. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'Show my open limit orders on BTC-CLP.'",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "market_id": {
-            "type": "STRING",
-            "description": "Market identifier (e.g. 'BTC-CLP', 'ETH-BTC'). Case-insensitive."
-          },
-          "state": {
-            "type": "STRING",
-            "description": "Filter by order state: 'pending', 'active', 'traded', 'canceled', 'canceled_and_traded'. Omit to return all orders."
-          },
-          "per": {
-            "type": "INTEGER",
-            "description": "Results per page (default: 20, max: 300)."
-          },
-          "page": {
-            "type": "INTEGER",
-            "description": "Page number (default: 1)."
-          }
-        },
-        "required": ["market_id"]
-      }
-    },
-    {
-      "name": "place_order",
-      "description": "Places a limit or market order on Buda.com. IMPORTANT: Requires confirmation_token='CONFIRM' to execute — any other value rejects without placing an order, preventing accidental execution. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. WARNING: Only use on locally-run instances — never on a publicly exposed server.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "market_id": {
-            "type": "STRING",
-            "description": "Market identifier (e.g. 'BTC-CLP', 'ETH-BTC'). Case-insensitive."
-          },
-          "type": {
-            "type": "STRING",
-            "description": "Order side: 'Bid' to buy, 'Ask' to sell."
-          },
-          "price_type": {
-            "type": "STRING",
-            "description": "Order type: 'limit' places at a specific price, 'market' executes immediately at best available price."
-          },
-          "amount": {
-            "type": "NUMBER",
-            "description": "Order size in the market's base currency (e.g. BTC amount for BTC-CLP)."
-          },
-          "limit_price": {
-            "type": "NUMBER",
-            "description": "Limit price in quote currency. Required when price_type is 'limit'. For Bid orders: highest price you will pay. For Ask orders: lowest price you will accept."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to place the order. Any other value rejects the request."
-          }
-        },
-        "required": ["market_id", "type", "price_type", "amount", "confirmation_token"]
-      }
-    },
-    {
-      "name": "cancel_order",
-      "description": "Cancels an open order by numeric ID on Buda.com. IMPORTANT: Requires confirmation_token='CONFIRM' to execute — any other value rejects without cancelling. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "order_id": {
-            "type": "INTEGER",
-            "description": "The numeric ID of the order to cancel."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to cancel the order. Any other value rejects the request."
-          }
-        },
-        "required": ["order_id", "confirmation_token"]
-      }
-    },
-    {
-      "name": "cancel_all_orders",
-      "description": "Cancels all open orders on Buda.com, optionally filtered by market. Pass market_id='*' to cancel across all markets. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "market_id": {
-            "type": "STRING",
-            "description": "Market ID (e.g. 'BTC-CLP') or '*' to cancel orders across all markets."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
-          }
-        },
-        "required": ["market_id", "confirmation_token"]
-      }
-    },
-    {
-      "name": "cancel_order_by_client_id",
-      "description": "Cancels an open order by its client-assigned string ID on Buda.com. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "client_id": {
-            "type": "STRING",
-            "description": "The client ID string assigned when placing the order."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
-          }
-        },
-        "required": ["client_id", "confirmation_token"]
-      }
-    },
-    {
-      "name": "place_batch_orders",
-      "description": "Places up to 20 orders sequentially on Buda.com. All orders are pre-validated before any API call. Partial failures do not roll back placed orders. Use max_notional to cap total exposure (sum of amount x limit_price for limit orders; market orders contribute 0). IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "orders": {
-            "type": "ARRAY",
-            "description": "Array of 1–20 orders to place. Each order: market_id, type (Bid/Ask), price_type (limit/market), amount, optional limit_price."
-          },
-          "max_notional": {
-            "type": "NUMBER",
-            "description": "Optional spending cap: total notional (sum of amount x limit_price for limit orders). Batch is rejected before any API call if exceeded. Market orders contribute 0."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
-          }
-        },
-        "required": ["orders", "confirmation_token"]
-      }
-    },
-    {
-      "name": "create_withdrawal",
-      "description": "Creates a crypto or fiat withdrawal on Buda.com. Exactly one of address (crypto) or bank_account_id (fiat) must be provided. WARNING: Crypto withdrawals are irreversible — verify the destination address carefully. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "currency": {
-            "type": "STRING",
-            "description": "Currency code (e.g. 'BTC', 'CLP')."
-          },
-          "amount": {
-            "type": "NUMBER",
-            "description": "Withdrawal amount."
-          },
-          "address": {
-            "type": "STRING",
-            "description": "Destination crypto address. Mutually exclusive with bank_account_id."
-          },
-          "network": {
-            "type": "STRING",
-            "description": "Blockchain network (e.g. 'bitcoin', 'ethereum'). Optional."
-          },
-          "bank_account_id": {
-            "type": "INTEGER",
-            "description": "Fiat bank account ID. Mutually exclusive with address."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
-          }
-        },
-        "required": ["currency", "amount", "confirmation_token"]
-      }
-    },
-    {
-      "name": "create_fiat_deposit",
-      "description": "Records a fiat deposit on Buda.com. IMPORTANT: Calling twice creates duplicate records. Requires confirmation_token='CONFIRM'. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "currency": {
-            "type": "STRING",
-            "description": "Fiat currency code (e.g. 'CLP', 'COP', 'PEN')."
-          },
-          "amount": {
-            "type": "NUMBER",
-            "description": "Deposit amount."
-          },
-          "bank": {
-            "type": "STRING",
-            "description": "Bank name or identifier for the deposit source. Optional."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
-          }
-        },
-        "required": ["currency", "amount", "confirmation_token"]
-      }
-    },
-    {
-      "name": "lightning_withdrawal",
-      "description": "Pays a Bitcoin Lightning Network BOLT-11 invoice from the Buda.com LN-BTC reserve. Funds leave immediately on success. IMPORTANT: Requires confirmation_token='CONFIRM'. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "invoice": {
-            "type": "STRING",
-            "description": "BOLT-11 Lightning invoice string (starts with 'lnbc', 'lntb', etc.)."
-          },
-          "confirmation_token": {
-            "type": "STRING",
-            "description": "Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."
-          }
-        },
-        "required": ["invoice", "confirmation_token"]
-      }
-    },
-    {
-      "name": "create_lightning_invoice",
-      "description": "Creates a Bitcoin Lightning Network receive invoice on Buda.com. No confirmation required — no funds leave the account. Auth-gated.",
-      "parameters": {
-        "type": "OBJECT",
-        "properties": {
-          "amount_satoshis": {
-            "type": "INTEGER",
-            "description": "Invoice amount in satoshis (positive integer)."
-          },
-          "description": {
-            "type": "STRING",
-            "description": "Optional payment description (max 140 characters)."
-          },
-          "expiry_seconds": {
-            "type": "INTEGER",
-            "description": "Invoice expiry in seconds (60–86400). Default: 3600."
-          }
-        },
-        "required": ["amount_satoshis"]
+        "required": [
+          "market_id",
+          "type",
+          "amount"
+        ]
       }
     }
   ]
