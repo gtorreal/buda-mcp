@@ -78,12 +78,27 @@ Composite sentiment score (−100 to +100) from three components: 24h price vari
 RSI (14), MACD (12/26/9), Bollinger Bands (20, 2σ), SMA 20, and SMA 50 — computed server-side from Buda trade history (no external libraries). Returns latest values + signal interpretations. Returns a structured warning if fewer than 50 candles are available after aggregation. Includes `disclaimer`.  
 **Parameters:** `market_id` *(required)*, `period` (`1h`/`4h`/`1d`, default `1h`), `limit` *(optional, 500–1000)*.
 
+### `get_available_banks`
+Banks available for deposits and withdrawals for a given fiat currency. Returns an array of `{ id, name, country }` objects, or an empty array if none are available. Cached 60 s.  
+**Parameters:** `currency` *(required)* — e.g. `CLP`, `COP`, `PEN`.
+
+### `get_real_quotation`
+Server-side buy or sell quotation from Buda using the live order book. Returns the exact fill price, total cost with fees, and applied fee rate. Does not place an order.  
+**Parameters:** `market_id` *(required)*, `type` (`Bid`/`Ask`) *(required)*, `amount` *(required)*, `limit` *(optional — limit price in quote currency)*.
+
 ### Authenticated tools (require `BUDA_API_KEY` + `BUDA_API_SECRET`)
 
 > **Important:** Authenticated instances must run locally only — never expose a server with API credentials publicly.
 
+### `get_account_info`
+Returns the authenticated user's profile: email, display name, pubsub key, and monthly transacted amounts. Read-only.
+
 ### `get_balances`
 All currency balances as flat typed objects: total, available, frozen, and pending withdrawal amounts as floats with `_currency` suffix fields.
+
+### `get_balance`
+Balance for a single currency: total, available, frozen, and pending withdrawal amounts as floats with `_currency` fields. Use when you only need one currency instead of fetching all.  
+**Parameters:** `currency` *(required)* — e.g. `BTC`, `CLP`, `USDC`.
 
 ### `get_orders`
 Orders for a given market as flat typed objects. All monetary amounts are floats with `_currency` fields. Filterable by state (`pending`, `active`, `traded`, `canceled`).  
@@ -105,13 +120,33 @@ Cancel all open orders in a specific market or across all markets (`market_id="*
 Cancel an open order by its client-assigned string ID. Requires `confirmation_token="CONFIRM"`. Returns the same flat order shape as `get_order`.  
 **Parameters:** `client_id`, `confirmation_token`.
 
+### `get_order`
+Fetch a single order by its numeric ID with full detail. All monetary amounts are floats with `_currency` fields.  
+**Parameters:** `order_id` *(required)*.
+
+### `get_order_by_client_id`
+Fetch a single order by the client-assigned string ID set at placement time.  
+**Parameters:** `client_id` *(required)*.
+
 ### `place_batch_orders`
 Place up to 20 orders sequentially. All orders are pre-validated before any API call. Partial failures do not roll back placed orders; a `warning` field surfaces this. Returns `{ results, total, succeeded, failed }`.  
 **Parameters:** `orders` (array of 1–20 order objects), `confirmation_token`.
 
+### `get_network_fees`
+Fee schedule for deposits or withdrawals of a given currency (name, flat fee, minimum, maximum, and whether the fee is a percentage). Useful before initiating a withdrawal.  
+**Parameters:** `currency` *(required)* — e.g. `BTC`, `ETH`, `CLP`. `type` *(required)* — `deposit` or `withdrawal`.
+
+### `get_withdrawal_history`
+Withdrawal history for a currency, optionally filtered by state and paginated. Amounts are floats with `_currency` fields.  
+**Parameters:** `currency` *(required)*, `state` *(optional: `pending_signature`/`pending`/`confirmed`/`rejected`/`anulled`)*, `per` *(optional)*, `page` *(optional)*.
+
 ### `create_withdrawal`
 Create a crypto or fiat withdrawal. Exactly one of `address` (crypto) or `bank_account_id` (fiat) must be provided. Requires `confirmation_token="CONFIRM"`.  
 **Parameters:** `currency`, `amount`, `address` *(crypto)*, `network` *(optional)*, `bank_account_id` *(fiat)*, `confirmation_token`.
+
+### `get_deposit_history`
+Deposit history for a currency, optionally filtered by state and paginated. Amounts are floats with `_currency` fields.  
+**Parameters:** `currency` *(required)*, `state` *(optional: `pending_info`/`pending`/`confirmed`/`anulled`/`retained`)*, `per` *(optional)*, `page` *(optional)*.
 
 ### `create_fiat_deposit`
 Record a fiat deposit. Guard is critical — calling twice creates duplicates. Requires `confirmation_token="CONFIRM"`.  
@@ -124,6 +159,42 @@ Pay a BOLT-11 Lightning invoice from the LN-BTC reserve. Requires `confirmation_
 ### `create_lightning_invoice`
 Create a Lightning receive invoice. No confirmation required. Returns `{ id, payment_request, amount_satoshis, description, expires_at, state, created_at }`.  
 **Parameters:** `amount_satoshis`, `description` *(optional, max 140 chars)*, `expiry_seconds` *(optional, 60–86400)*.
+
+### `create_receive_address`
+Generate a new crypto deposit address for a currency. Not idempotent — each call creates a new address. Crypto only.  
+**Parameters:** `currency` *(required)* — e.g. `BTC`, `ETH`.
+
+### `list_receive_addresses`
+List all receive (deposit) addresses for a currency.  
+**Parameters:** `currency` *(required)*.
+
+### `get_receive_address`
+Fetch a specific receive address by its numeric ID.  
+**Parameters:** `currency` *(required)*, `id` *(required)*.
+
+### `list_remittance_recipients`
+List saved remittance recipients (bank accounts) for fiat transfers, with pagination.  
+**Parameters:** `per` *(optional)*, `page` *(optional)*.
+
+### `get_remittance_recipient`
+Fetch a single saved remittance recipient by ID.  
+**Parameters:** `id` *(required)*.
+
+### `list_remittances`
+List past fiat remittance transfers with pagination. Amounts are floats with `_currency` fields.  
+**Parameters:** `per` *(optional)*, `page` *(optional)*.
+
+### `quote_remittance`
+Create a time-limited remittance quote (does not transfer funds). Follow with `accept_remittance_quote` to execute. Not idempotent.  
+**Parameters:** `currency` *(required)*, `amount` *(required)*, `recipient_id` *(required)*.
+
+### `accept_remittance_quote`
+Accept and execute a remittance quote. **Irreversible.** Requires `confirmation_token="CONFIRM"`.  
+**Parameters:** `id` *(required — quote ID)*, `confirmation_token`.
+
+### `get_remittance`
+Fetch the status and details of a single remittance by ID.  
+**Parameters:** `id` *(required)*.
 
 ### `schedule_cancel_all`
 **WARNING: timer state is lost on server restart. Use only on locally-run instances.**  

@@ -308,6 +308,317 @@
       }
     },
     {
+      "name": "get_available_banks",
+      "description": "Returns banks available for deposits and withdrawals for a given fiat currency as an array of {id, name, country} objects. Returns an empty array if none are available. Cached 60s. Example: 'Which banks can I use to deposit CLP on Buda?'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Fiat currency code (e.g. 'CLP', 'COP', 'PEN'). Case-insensitive."
+          }
+        },
+        "required": ["currency"]
+      }
+    },
+    {
+      "name": "get_real_quotation",
+      "description": "Server-side buy or sell quotation from Buda using the live order book. Returns exact fill price, total cost with fees, and applied fee rate. Does not place an order. Example: 'What would it cost to buy 0.1 BTC on BTC-CLP right now including fees?'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market identifier (e.g. 'BTC-CLP', 'ETH-BTC'). Case-insensitive."
+          },
+          "type": {
+            "type": "STRING",
+            "description": "Order side: 'Bid' to buy base currency, 'Ask' to sell base currency."
+          },
+          "amount": {
+            "type": "NUMBER",
+            "description": "Order size in the base currency (e.g. BTC for BTC-CLP)."
+          },
+          "limit": {
+            "type": "NUMBER",
+            "description": "Optional limit price in quote currency."
+          }
+        },
+        "required": ["market_id", "type", "amount"]
+      }
+    },
+    {
+      "name": "get_account_info",
+      "description": "Returns the authenticated user's profile on Buda.com: email, display name, pubsub key, and monthly transacted amounts. Read-only. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "get_balance",
+      "description": "Returns the balance for a single currency for the authenticated Buda.com account as a flat typed object. Includes total, available, frozen, and pending withdrawal amounts as floats with separate _currency fields. More efficient than get_balances when only one currency is needed. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'How much ETH do I have available?'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Currency code (e.g. 'BTC', 'ETH', 'CLP', 'USDC'). Case-insensitive."
+          }
+        },
+        "required": ["currency"]
+      }
+    },
+    {
+      "name": "get_order",
+      "description": "Fetch a single order by its numeric ID with full detail. All monetary amounts are floats with separate _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'What is the status of order 12345?'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "order_id": {
+            "type": "INTEGER",
+            "description": "Numeric order ID."
+          }
+        },
+        "required": ["order_id"]
+      }
+    },
+    {
+      "name": "get_order_by_client_id",
+      "description": "Fetch a single order by the client-assigned string ID set at placement time. All monetary amounts are floats with _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "client_id": {
+            "type": "STRING",
+            "description": "Client-assigned string ID used when placing the order."
+          }
+        },
+        "required": ["client_id"]
+      }
+    },
+    {
+      "name": "get_network_fees",
+      "description": "Returns the deposit or withdrawal fee schedule for a given currency: fee name, flat amount, minimum, maximum, and percentage flag. Useful before initiating a withdrawal. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'What is the fee to withdraw ETH from Buda?'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Currency code (e.g. 'BTC', 'ETH', 'CLP'). Case-insensitive."
+          },
+          "type": {
+            "type": "STRING",
+            "description": "Fee direction: 'deposit' or 'withdrawal'."
+          }
+        },
+        "required": ["currency", "type"]
+      }
+    },
+    {
+      "name": "get_deposit_history",
+      "description": "Deposit history for a currency, optionally filtered by state and paginated. Amounts are floats with _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'Show my confirmed BTC deposits.'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Currency code (e.g. 'BTC', 'CLP'). Case-insensitive."
+          },
+          "state": {
+            "type": "STRING",
+            "description": "Filter by state: 'pending_info', 'pending', 'confirmed', 'anulled', 'retained'. Omit to return all."
+          },
+          "per": {
+            "type": "INTEGER",
+            "description": "Results per page (default 20, max 300)."
+          },
+          "page": {
+            "type": "INTEGER",
+            "description": "Page number (default 1)."
+          }
+        },
+        "required": ["currency"]
+      }
+    },
+    {
+      "name": "get_withdrawal_history",
+      "description": "Withdrawal history for a currency, optionally filtered by state and paginated. Amounts are floats with _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'Show my pending BTC withdrawals.'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Currency code (e.g. 'BTC', 'CLP'). Case-insensitive."
+          },
+          "state": {
+            "type": "STRING",
+            "description": "Filter by state: 'pending_signature', 'pending', 'confirmed', 'rejected', 'anulled'. Omit to return all."
+          },
+          "per": {
+            "type": "INTEGER",
+            "description": "Results per page (default 20, max 300)."
+          },
+          "page": {
+            "type": "INTEGER",
+            "description": "Page number (default 1)."
+          }
+        },
+        "required": ["currency"]
+      }
+    },
+    {
+      "name": "create_receive_address",
+      "description": "Generate a new crypto deposit (receive) address for a currency. Not idempotent — each call creates a new address. Crypto only. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Crypto currency code (e.g. 'BTC', 'ETH'). Case-insensitive."
+          }
+        },
+        "required": ["currency"]
+      }
+    },
+    {
+      "name": "list_receive_addresses",
+      "description": "List all receive (deposit) addresses for a currency. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Crypto currency code (e.g. 'BTC', 'ETH'). Case-insensitive."
+          }
+        },
+        "required": ["currency"]
+      }
+    },
+    {
+      "name": "get_receive_address",
+      "description": "Fetch a specific receive (deposit) address by its numeric ID. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Crypto currency code (e.g. 'BTC', 'ETH'). Case-insensitive."
+          },
+          "id": {
+            "type": "INTEGER",
+            "description": "Numeric receive address ID."
+          }
+        },
+        "required": ["currency", "id"]
+      }
+    },
+    {
+      "name": "list_remittance_recipients",
+      "description": "List saved remittance recipients (bank accounts) for fiat transfers, with optional pagination. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "per": {
+            "type": "INTEGER",
+            "description": "Results per page (default 20, max 300)."
+          },
+          "page": {
+            "type": "INTEGER",
+            "description": "Page number (default 1)."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "get_remittance_recipient",
+      "description": "Fetch a single saved remittance recipient by ID. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "id": {
+            "type": "INTEGER",
+            "description": "Numeric recipient ID."
+          }
+        },
+        "required": ["id"]
+      }
+    },
+    {
+      "name": "list_remittances",
+      "description": "List past fiat remittance transfers with optional pagination. Amounts are floats with _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "per": {
+            "type": "INTEGER",
+            "description": "Results per page (default 20, max 300)."
+          },
+          "page": {
+            "type": "INTEGER",
+            "description": "Page number (default 1)."
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "quote_remittance",
+      "description": "Create a time-limited remittance quote using the live FX rate. Does not transfer funds. Follow with accept_remittance_quote to execute. Not idempotent. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "currency": {
+            "type": "STRING",
+            "description": "Fiat currency to remit (e.g. 'CLP', 'COP', 'PEN')."
+          },
+          "amount": {
+            "type": "NUMBER",
+            "description": "Amount to remit (positive number)."
+          },
+          "recipient_id": {
+            "type": "INTEGER",
+            "description": "Saved remittance recipient ID."
+          }
+        },
+        "required": ["currency", "amount", "recipient_id"]
+      }
+    },
+    {
+      "name": "accept_remittance_quote",
+      "description": "Accept and execute a previously quoted remittance. IMPORTANT: Irreversible — funds are transferred immediately. Requires confirmation_token='CONFIRM'. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "id": {
+            "type": "INTEGER",
+            "description": "Remittance quote ID to accept."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Must equal exactly 'CONFIRM' (case-sensitive) to execute the remittance."
+          }
+        },
+        "required": ["id", "confirmation_token"]
+      }
+    },
+    {
+      "name": "get_remittance",
+      "description": "Fetch the status and details of a single remittance by ID. Amounts are floats with _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "id": {
+            "type": "INTEGER",
+            "description": "Remittance ID."
+          }
+        },
+        "required": ["id"]
+      }
+    },
+    {
       "name": "get_balances",
       "description": "Returns all currency balances for the authenticated Buda.com account as flat typed objects. Each currency entry includes total amount, available amount (not frozen), frozen amount, and pending withdrawal amount — all as floats with separate _currency fields. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated. Example: 'How much BTC do I have available to trade right now?'",
       "parameters": {

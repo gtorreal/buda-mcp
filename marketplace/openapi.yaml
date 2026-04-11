@@ -488,6 +488,77 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /get_available_banks:
+    get:
+      operationId: getAvailableBanks
+      summary: Banks available for deposits and withdrawals of a fiat currency
+      description: |
+        Returns banks available for deposits and withdrawals of a given fiat currency on Buda.com.
+        Returns an empty banks array (not an error) if the currency has no associated banks
+        (e.g. crypto currencies or unsupported fiat currencies). Results are cached for 60 seconds.
+        Example: 'Which banks can I use for CLP deposits?'
+      parameters:
+        - name: currency
+          in: query
+          required: true
+          description: Fiat currency code (e.g. "CLP", "COP", "PEN"). Case-insensitive.
+          schema:
+            type: string
+            example: CLP
+      responses:
+        "200":
+          description: Available banks for the currency
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailableBanksResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /get_real_quotation:
+    post:
+      operationId: getRealQuotation
+      summary: Server-side price quotation for a buy or sell
+      description: |
+        Calls the Buda quotation API to compute an accurate fill estimate including fees,
+        based on live order book state. Prefer this over simulate_order for accurate fee-tier-aware quotes.
+        This is a POST but does not place an order. Public endpoint — no API key required.
+        Example: 'Get an accurate quote to sell 0.05 BTC on BTC-CLP.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [market_id, type, amount]
+              properties:
+                market_id:
+                  type: string
+                  description: Market identifier (e.g. "BTC-CLP", "ETH-BTC"). Case-insensitive.
+                  example: BTC-CLP
+                type:
+                  type: string
+                  enum: [Bid, Ask]
+                  description: "'Bid' to buy base currency, 'Ask' to sell base currency."
+                amount:
+                  type: number
+                  minimum: 0
+                  description: Order size in base currency (e.g. BTC for BTC-CLP).
+                  example: 0.05
+                limit:
+                  type: number
+                  minimum: 0
+                  description: Optional limit price in quote currency.
+      responses:
+        "200":
+          description: Quotation result with fill price, fees, and balance changes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotationResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /get_technical_indicators:
     get:
       operationId: getTechnicalIndicators
@@ -929,6 +1000,89 @@ components:
         fees_note:
           type: string
           example: "Buda taker fee is 0.8% per leg. A round-trip arbitrage costs approximately 1.6% in fees."
+
+    BankEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          example: banco_estado
+        name:
+          type: string
+          example: Banco Estado
+        country:
+          type: string
+          nullable: true
+          example: CL
+
+    AvailableBanksResponse:
+      type: object
+      properties:
+        currency:
+          type: string
+          example: CLP
+        banks:
+          type: array
+          description: Empty array if no banks are available for this currency.
+          items:
+            $ref: "#/components/schemas/BankEntry"
+
+    QuotationResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+          example: 12345
+        type:
+          type: string
+          enum: [Bid, Ask]
+        market_id:
+          type: string
+          example: BTC-CLP
+        amount:
+          type: number
+          description: Requested order size in base currency.
+          example: 0.05
+        amount_currency:
+          type: string
+          example: BTC
+        limit:
+          type: number
+          nullable: true
+          description: Limit price in quote currency, if provided.
+        limit_currency:
+          type: string
+          nullable: true
+          example: CLP
+        base_balance_change:
+          type: number
+          description: Net change to base currency balance (negative for Ask).
+          example: -0.05
+        base_balance_change_currency:
+          type: string
+          example: BTC
+        quote_balance_change:
+          type: number
+          description: Net change to quote currency balance (negative for Bid).
+          example: 4000000
+        quote_balance_change_currency:
+          type: string
+          example: CLP
+        fee_amount:
+          type: number
+          description: Fee charged in quote currency.
+          example: 32000
+        fee_currency:
+          type: string
+          example: CLP
+        order_amount:
+          type: number
+          description: Gross order value before fees.
+          example: 4032000
+        order_amount_currency:
+          type: string
+          example: CLP
 
     SimulateOrderResponse:
       type: object
