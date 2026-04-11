@@ -1,4 +1,37 @@
+import { timingSafeEqual } from "crypto";
 import type { Amount, OhlcvCandle } from "./types.js";
+
+/**
+ * Constant-time string comparison to prevent timing attacks on bearer tokens.
+ */
+export function safeTokenEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
+
+/**
+ * Parses a raw string (from an environment variable) as an integer within [min, max].
+ * Returns the fallback when raw is undefined.
+ * Throws a descriptive Error if the value is non-numeric or out of range.
+ */
+export function parseEnvInt(
+  raw: string | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+  name: string,
+): number {
+  if (raw === undefined) return fallback;
+  const n = parseInt(raw, 10);
+  if (isNaN(n) || n < min || n > max) {
+    throw new Error(
+      `[buda-mcp] Invalid ${name} "${raw}". Must be an integer between ${min} and ${max}.`,
+    );
+  }
+  return n;
+}
 
 /**
  * Flattens a Buda API Amount tuple [value_string, currency] into a typed object.

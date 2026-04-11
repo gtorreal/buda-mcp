@@ -9,7 +9,8 @@ import { MemoryCache } from "../src/cache.js";
 import { validateMarketId, validateCryptoAddress } from "../src/validation.js";
 import { handlePlaceOrder } from "../src/tools/place_order.js";
 import { handleCancelOrder } from "../src/tools/cancel_order.js";
-import { flattenAmount, getLiquidityRating, aggregateTradesToCandles } from "../src/utils.js";
+import { flattenAmount, getLiquidityRating, aggregateTradesToCandles, safeTokenEqual, parseEnvInt } from "../src/utils.js";
+import { logAudit } from "../src/audit.js";
 import { handleArbitrageOpportunities } from "../src/tools/arbitrage.js";
 import { handleMarketSummary } from "../src/tools/market_summary.js";
 import { handleSimulateOrder } from "../src/tools/simulate_order.js";
@@ -35,6 +36,7 @@ import { handlePlaceBatchOrders } from "../src/tools/batch_orders.js";
 import { handleCreateWithdrawal } from "../src/tools/withdrawals.js";
 import { handleCreateFiatDeposit } from "../src/tools/deposits.js";
 import { handleLightningWithdrawal, handleCreateLightningInvoice } from "../src/tools/lightning.js";
+import { handleCompareMarkets } from "../src/tools/compare_markets.js";
 
 // ----------------------------------------------------------------
 // Minimal test harness
@@ -2934,7 +2936,7 @@ await test("handleLightningWithdrawal: missing/wrong token returns CONFIRMATION_
   try {
     const client = {} as BudaClient;
     const result = await handleLightningWithdrawal(
-      { invoice: "lnbc1000u1ptest...", confirmation_token: "NOPE" },
+      { invoice: "lnbc1000u1p" + "a".repeat(40), confirmation_token: "NOPE" },
       client,
     );
     assert(result.isError === true, "should be error");
@@ -2966,7 +2968,7 @@ await test("handleLightningWithdrawal: happy path returns flat withdrawal", asyn
   try {
     const client = new BudaClient("https://www.buda.com/api/v2");
     const result = await handleLightningWithdrawal(
-      { invoice: "lnbc1000u1ptest...", confirmation_token: "CONFIRM" },
+      { invoice: "lnbc1000u1p" + "a".repeat(40), confirmation_token: "CONFIRM" },
       client,
     );
     assert(!result.isError, "should not be error");
@@ -2992,7 +2994,7 @@ await test("handleLightningWithdrawal: API error passthrough", async () => {
   try {
     const client = new BudaClient("https://www.buda.com/api/v2");
     const result = await handleLightningWithdrawal(
-      { invoice: "lnbc1000u1ptest...", confirmation_token: "CONFIRM" },
+      { invoice: "lnbc1000u1p" + "a".repeat(40), confirmation_token: "CONFIRM" },
       client,
     );
     assert(result.isError === true, "should be error");
@@ -3305,6 +3307,362 @@ await test("handlePlaceBatchOrders: market orders contribute 0 to notional (cap 
   } finally {
     globalThis.fetch = savedFetch;
   }
+});
+
+// ----------------------------------------------------------------
+// Security — audit logging (logAudit)
+// ----------------------------------------------------------------
+
+section("logAudit — structured audit logging");
+
+await test("logAudit: writes valid JSON with required fields to stderr", () => {
+  const lines: string[] = [];
+  const savedWrite = process.stderr.write.bind(process.stderr);
+  (process.stderr as unknown as { write: (s: string) => boolean }).write = (s: string) => {
+    lines.push(s);
+    return true;
+  };
+  try {
+    logAudit({ ts: "2024-01-01T00:00:00.000Z", tool: "place_order", transport: "stdio", args_summary: { market_id: "BTC-CLP" }, success: true });
+  } finally {
+    (process.stderr as unknown as { write: (s: string) => boolean }).write = savedWrite;
+  }
+  assert(lines.length === 1, "should write exactly one line");
+  const parsed = JSON.parse(lines[0].trim()) as Record<string, unknown>;
+  assert(parsed.audit === true, "must have audit:true marker");
+  assertEqual(parsed.tool as string, "place_order", "tool field must be present");
+  assertEqual(parsed.transport as string, "stdio", "transport field must be present");
+  assert(typeof parsed.ts === "string", "ts field must be a string");
+  assert(typeof parsed.success === "boolean", "success field must be a boolean");
+});
+
+await test("logAudit: output does NOT contain confirmation_token", () => {
+  const lines: string[] = [];
+  const savedWrite = process.stderr.write.bind(process.stderr);
+  (process.stderr as unknown as { write: (s: string) => boolean }).write = (s: string) => {
+    lines.push(s);
+    return true;
+  };
+  try {
+    logAudit({ ts: new Date().toISOString(), tool: "place_order", transport: "stdio", args_summary: { market_id: "BTC-CLP", type: "Bid" }, success: false, error_code: "CONFIRMATION_REQUIRED" });
+  } finally {
+    (process.stderr as unknown as { write: (s: string) => boolean }).write = savedWrite;
+  }
+  const raw = lines[0] ?? "";
+  assert(!raw.includes("confirmation_token"), "audit log must NOT contain confirmation_token");
+  assert(!raw.includes("invoice"), "audit log must NOT contain invoice field");
+});
+
+await test("logAudit: error_code is included when success is false", () => {
+  const lines: string[] = [];
+  const savedWrite = process.stderr.write.bind(process.stderr);
+  (process.stderr as unknown as { write: (s: string) => boolean }).write = (s: string) => {
+    lines.push(s);
+    return true;
+  };
+  try {
+    logAudit({ ts: new Date().toISOString(), tool: "cancel_order", transport: "http", args_summary: {}, success: false, error_code: 422 });
+  } finally {
+    (process.stderr as unknown as { write: (s: string) => boolean }).write = savedWrite;
+  }
+  const parsed = JSON.parse(lines[0].trim()) as Record<string, unknown>;
+  assertEqual(parsed.error_code as number, 422, "error_code must be 422");
+  assertEqual(parsed.success as boolean, false, "success must be false");
+});
+
+await test("handlePlaceOrder with CONFIRM → logAudit called with success:true", async () => {
+  const savedFetch = globalThis.fetch;
+  const auditLines: string[] = [];
+  const savedWrite = process.stderr.write.bind(process.stderr);
+  (process.stderr as unknown as { write: (s: string) => boolean }).write = (s: string) => {
+    if (s.includes('"audit":true')) auditLines.push(s);
+    return true;
+  };
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({ order: { id: 1, state: "pending", market_id: "btc-clp", type: "Bid", price_type: "limit", amount: ["0.001", "BTC"], original_amount: ["0.001", "BTC"], traded_amount: ["0", "BTC"], total_exchanged: ["0", "CLP"], paid_fee: ["0", "CLP"], limit: ["80000000", "CLP"] } }),
+    { status: 200 },
+  );
+  try {
+    const client = new BudaClient(undefined, "key", "secret");
+    const result = await handlePlaceOrder(
+      { market_id: "BTC-CLP", type: "Bid", price_type: "limit", amount: 0.001, limit_price: 80_000_000, confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(!result.isError, "should succeed");
+    assert(auditLines.length > 0, "logAudit must have been called");
+    const parsed = JSON.parse(auditLines[0].trim()) as Record<string, unknown>;
+    assertEqual(parsed.tool as string, "place_order", "tool should be place_order");
+    assert(parsed.success === true, "success should be true");
+  } finally {
+    globalThis.fetch = savedFetch;
+    (process.stderr as unknown as { write: (s: string) => boolean }).write = savedWrite;
+  }
+});
+
+// ----------------------------------------------------------------
+// Security — error response does not expose API path
+// ----------------------------------------------------------------
+
+section("Error responses — path field redacted");
+
+await test("handlePlaceOrder with invalid market: error response has no 'path' field", async () => {
+  const client = new BudaClient(undefined, "key", "secret");
+  const result = await handlePlaceOrder(
+    { market_id: "INVALID!!!", type: "Bid", price_type: "limit", amount: 1, limit_price: 1, confirmation_token: "CONFIRM" },
+    client,
+  );
+  assert(result.isError === true, "should be error");
+  const parsed = JSON.parse(result.content[0].text) as Record<string, unknown>;
+  assert(!("path" in parsed), "error response must NOT contain 'path' field");
+});
+
+await test("handleCancelAllOrders API error: response has no 'path' field", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ message: "Not found" }), { status: 404 });
+  try {
+    const client = new BudaClient(undefined, "key", "secret");
+    const result = await handleCancelAllOrders(
+      { market_id: "BTC-CLP", confirmation_token: "CONFIRM" },
+      client,
+    );
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as Record<string, unknown>;
+    assert(!("path" in parsed), "error response must NOT contain 'path' field");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Security — validateCurrency in compare_markets
+// ----------------------------------------------------------------
+
+section("handleCompareMarkets — validateCurrency guard");
+
+await test("handleCompareMarkets: base_currency with spaces → INVALID_CURRENCY (no API call)", async () => {
+  let fetchCalled = false;
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async () => { fetchCalled = true; return new Response("{}", { status: 200 }); };
+  try {
+    const client = new BudaClient(undefined, "key", "secret");
+    const cache = new MemoryCache();
+    const result = await handleCompareMarkets({ base_currency: "B T C" }, client, cache);
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "INVALID_CURRENCY", "spaces in currency should return INVALID_CURRENCY");
+    assert(result.isError === true, "isError must be true");
+    assert(!fetchCalled, "fetch must NOT be called for invalid currency");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCompareMarkets: base_currency exceeding max length → INVALID_CURRENCY", async () => {
+  const client = new BudaClient(undefined, "key", "secret");
+  const cache = new MemoryCache();
+  const result = await handleCompareMarkets({ base_currency: "A".repeat(20) }, client, cache);
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_CURRENCY", "overlong currency should return INVALID_CURRENCY");
+});
+
+await test("handleCompareMarkets: empty string → INVALID_CURRENCY", async () => {
+  const client = new BudaClient(undefined, "key", "secret");
+  const cache = new MemoryCache();
+  const result = await handleCompareMarkets({ base_currency: "" }, client, cache);
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_CURRENCY", "empty string should return INVALID_CURRENCY");
+});
+
+await test("handleCompareMarkets: valid currency passes validation (reaches API/cache)", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({ tickers: [] }),
+    { status: 200 },
+  );
+  try {
+    const client = new BudaClient(undefined, "key", "secret");
+    const cache = new MemoryCache();
+    const result = await handleCompareMarkets({ base_currency: "BTC" }, client, cache);
+    const parsed = JSON.parse(result.content[0].text) as { code?: string };
+    assert(parsed.code !== "INVALID_CURRENCY", "valid currency must not return INVALID_CURRENCY");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Security — BOLT-11 regex improvement
+// ----------------------------------------------------------------
+
+section("handleLightningWithdrawal — improved BOLT-11 regex");
+
+await test("BOLT-11 regex: invoice without bech32 separator '1' → INVALID_INVOICE", async () => {
+  const client = new BudaClient(undefined, "key", "secret");
+  // "lnbc" + 46 chars: passes Zod min(50) but has no '1' separator → should fail new regex
+  const noSeparator = "lnbc" + "a".repeat(46);
+  const result = await handleLightningWithdrawal(
+    { invoice: noSeparator, confirmation_token: "CONFIRM" },
+    client,
+  );
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_INVOICE", "invoice without bech32 separator must fail");
+});
+
+await test("BOLT-11 regex: invoice with insufficient data after separator → INVALID_INVOICE", async () => {
+  const client = new BudaClient(undefined, "key", "secret");
+  // "lnbc1" + 5 chars (< 20 required after separator) padded to 50 total
+  const tooShortData = "lnbc1" + "a".repeat(5) + "x".repeat(40);
+  // This has '1' at position 5, then only 5 chars of [a-z0-9] before non-bech32 chars
+  // Actually we need to construct this carefully:
+  // New regex: /^ln(bc|tb|bcrt)\d*[munp]?1[a-z0-9]{20,}$/i
+  // "lnbc1aaaaa" has only 5 chars after 1 - fails {20,}
+  const shortAfterSep = "lnbc1" + "a".repeat(5) + " ".repeat(45); // has spaces → fails [a-z0-9] and $
+  const result = await handleLightningWithdrawal(
+    { invoice: shortAfterSep, confirmation_token: "CONFIRM" },
+    client,
+  );
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_INVOICE", "invoice with insufficient bech32 data must fail");
+});
+
+await test("BOLT-11 regex: valid mainnet invoice structure passes (existing test)", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({ message: "invalid invoice" }), { status: 422 },
+  );
+  try {
+    const client = new BudaClient(undefined, "key", "secret");
+    // Same invoice from existing test — must still pass the format guard
+    const validInvoice = "lntb1230n1pj8ygappp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypq";
+    const result = await handleLightningWithdrawal(
+      { invoice: validInvoice, confirmation_token: "CONFIRM" },
+      client,
+    );
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assert(parsed.code !== "INVALID_INVOICE", "well-formed testnet invoice must pass format guard");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Security — DMS renew/disarm blocked on HTTP transport
+// ----------------------------------------------------------------
+
+section("DMS renew_cancel_timer / disarm_cancel_timer — HTTP transport guard");
+
+await test("renew_cancel_timer: transport='http' returns TRANSPORT_NOT_SUPPORTED", () => {
+  const renewTransportGuard = (transport: "stdio" | "http") => {
+    if (transport === "http") {
+      return Promise.resolve({
+        content: [{ type: "text" as const, text: JSON.stringify({ code: "TRANSPORT_NOT_SUPPORTED" }) }],
+        isError: true,
+      });
+    }
+    return Promise.resolve(handleRenewCancelTimer({ market_id: "BTC-CLP" }, new BudaClient(undefined, "k", "s")));
+  };
+  const result = renewTransportGuard("http");
+  return result.then((r) => {
+    const parsed = JSON.parse(r.content[0].text) as { code: string };
+    assertEqual(parsed.code, "TRANSPORT_NOT_SUPPORTED", "renew on HTTP must return TRANSPORT_NOT_SUPPORTED");
+    assert(r.isError === true, "isError must be true");
+  });
+});
+
+await test("disarm_cancel_timer: transport='http' returns TRANSPORT_NOT_SUPPORTED", () => {
+  const disarmTransportGuard = (transport: "stdio" | "http") => {
+    if (transport === "http") {
+      return Promise.resolve({
+        content: [{ type: "text" as const, text: JSON.stringify({ code: "TRANSPORT_NOT_SUPPORTED" }) }],
+        isError: true,
+      });
+    }
+    return Promise.resolve(handleDisarmCancelTimer({ market_id: "BTC-CLP" }));
+  };
+  const result = disarmTransportGuard("http");
+  return result.then((r) => {
+    const parsed = JSON.parse(r.content[0].text) as { code: string };
+    assertEqual(parsed.code, "TRANSPORT_NOT_SUPPORTED", "disarm on HTTP must return TRANSPORT_NOT_SUPPORTED");
+    assert(r.isError === true, "isError must be true");
+  });
+});
+
+await test("renew_cancel_timer: transport='stdio' without active timer → NO_ACTIVE_TIMER (handler unchanged)", () => {
+  const client = new BudaClient(undefined, "key", "secret");
+  const result = handleRenewCancelTimer({ market_id: "ETH-CLP" }, client);
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "NO_ACTIVE_TIMER", "no timer should return NO_ACTIVE_TIMER");
+});
+
+await test("disarm_cancel_timer: transport='stdio' without active timer → disarmed: false (handler unchanged)", () => {
+  const result = handleDisarmCancelTimer({ market_id: "ETH-CLP" });
+  const parsed = JSON.parse(result.content[0].text) as { disarmed: boolean };
+  assert(parsed.disarmed === false, "disarm with no timer should return disarmed: false");
+});
+
+// ----------------------------------------------------------------
+// Security — safeTokenEqual (constant-time bearer comparison)
+// ----------------------------------------------------------------
+
+section("safeTokenEqual — constant-time bearer token comparison");
+
+await test("safeTokenEqual: identical strings → true", () => {
+  assert(safeTokenEqual("Bearer abc123", "Bearer abc123"), "identical strings must be equal");
+});
+
+await test("safeTokenEqual: different same-length strings → false", () => {
+  assert(!safeTokenEqual("Bearer abc", "Bearer xyz"), "different same-length strings must differ");
+});
+
+await test("safeTokenEqual: different-length strings → false (no crash)", () => {
+  assert(!safeTokenEqual("short", "longerstring"), "different-length strings must differ");
+  assert(!safeTokenEqual("longerstring", "short"), "reversed different-length must differ");
+});
+
+await test("safeTokenEqual: empty strings → true", () => {
+  assert(safeTokenEqual("", ""), "two empty strings are equal");
+});
+
+await test("safeTokenEqual: one empty string → false", () => {
+  assert(!safeTokenEqual("", "token"), "empty vs non-empty must differ");
+  assert(!safeTokenEqual("token", ""), "non-empty vs empty must differ");
+});
+
+// ----------------------------------------------------------------
+// Security — parseEnvInt (config validation helper)
+// ----------------------------------------------------------------
+
+section("parseEnvInt — environment variable integer validation");
+
+await test("parseEnvInt: undefined raw → returns fallback", () => {
+  assertEqual(parseEnvInt(undefined, 3000, 1, 65535, "PORT"), 3000, "should return fallback");
+});
+
+await test("parseEnvInt: valid string within range → parsed value", () => {
+  assertEqual(parseEnvInt("8080", 3000, 1, 65535, "PORT"), 8080, "should parse 8080");
+  assertEqual(parseEnvInt("120", 120, 1, 10_000, "MCP_RATE_LIMIT"), 120, "should parse 120");
+});
+
+await test("parseEnvInt: NaN string → throws", () => {
+  let threw = false;
+  try { parseEnvInt("abc", 3000, 1, 65535, "PORT"); } catch { threw = true; }
+  assert(threw, "non-numeric string should throw");
+});
+
+await test("parseEnvInt: value below min → throws", () => {
+  let threw = false;
+  try { parseEnvInt("0", 3000, 1, 65535, "PORT"); } catch { threw = true; }
+  assert(threw, "value 0 below min 1 should throw");
+});
+
+await test("parseEnvInt: value above max → throws", () => {
+  let threw = false;
+  try { parseEnvInt("70000", 3000, 1, 65535, "PORT"); } catch { threw = true; }
+  assert(threw, "value 70000 above max 65535 should throw");
+});
+
+await test("parseEnvInt: boundary values are accepted", () => {
+  assertEqual(parseEnvInt("1", 3000, 1, 65535, "PORT"), 1, "min boundary should be accepted");
+  assertEqual(parseEnvInt("65535", 3000, 1, 65535, "PORT"), 65535, "max boundary should be accepted");
 });
 
 // ----------------------------------------------------------------

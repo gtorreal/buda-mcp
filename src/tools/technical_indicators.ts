@@ -247,7 +247,7 @@ export async function handleTechnicalIndicators(
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],

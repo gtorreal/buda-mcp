@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { validateMarketId } from "../validation.js";
+import { logAudit } from "../audit.js";
 import type { OrderResponse } from "../types.js";
 
 export const toolSchema = {
@@ -91,6 +92,7 @@ type PlaceOrderArgs = {
 export async function handlePlaceOrder(
   args: PlaceOrderArgs,
   client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const {
     market_id,
@@ -243,18 +245,35 @@ export async function handlePlaceOrder(
       payload,
     );
 
-    return {
-      content: [{ type: "text", text: JSON.stringify(data.order, null, 2) }],
+    const result = {
+      content: [{ type: "text" as const, text: JSON.stringify(data.order, null, 2) }],
     };
+    logAudit({
+      ts: new Date().toISOString(),
+      tool: "place_order",
+      transport,
+      args_summary: { market_id, type, price_type, amount },
+      success: true,
+    });
+    return result;
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
-    return {
-      content: [{ type: "text", text: JSON.stringify(msg) }],
+    const result = {
+      content: [{ type: "text" as const, text: JSON.stringify(msg) }],
       isError: true,
     };
+    logAudit({
+      ts: new Date().toISOString(),
+      tool: "place_order",
+      transport,
+      args_summary: { market_id, type, price_type, amount },
+      success: false,
+      error_code: msg.code,
+    });
+    return result;
   }
 }
 

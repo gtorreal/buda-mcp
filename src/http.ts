@@ -4,6 +4,7 @@ import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mc
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { BudaClient } from "./client.js";
 import { MemoryCache, CACHE_TTL } from "./cache.js";
+import { safeTokenEqual, parseEnvInt } from "./utils.js";
 import { VERSION } from "./version.js";
 import { validateMarketId } from "./validation.js";
 import type { MarketsResponse, TickerResponse } from "./types.js";
@@ -43,7 +44,13 @@ import * as batchOrders from "./tools/batch_orders.js";
 import * as lightning from "./tools/lightning.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
-const PORT = parseInt(process.env.PORT ?? "3000", 10);
+let PORT: number;
+try {
+  PORT = parseEnvInt(process.env.PORT, 3000, 1, 65535, "PORT");
+} catch (err) {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+}
 
 const client = new BudaClient(
   undefined,
@@ -224,6 +231,9 @@ function createServer(): McpServer {
 }
 
 const app = express();
+// Required for correct client IP detection behind Railway's reverse proxy.
+// Without this, express-rate-limit sees the proxy IP instead of the real client.
+app.set("trust proxy", 1);
 app.use(express.json());
 
 const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN;
@@ -237,9 +247,23 @@ if (authEnabled && !MCP_AUTH_TOKEN) {
   process.exit(1);
 }
 
+if (MCP_AUTH_TOKEN && MCP_AUTH_TOKEN.length < 32) {
+  console.warn(
+    "[buda-mcp] WARNING: MCP_AUTH_TOKEN has fewer than 32 characters. Use a longer random secret.",
+  );
+}
+
+let rateLimitMax: number;
+try {
+  rateLimitMax = parseEnvInt(process.env.MCP_RATE_LIMIT, 120, 1, 10_000, "MCP_RATE_LIMIT");
+} catch (err) {
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+}
+
 const mcpRateLimiter = rateLimit({
   windowMs: 60_000,
-  max: parseInt(process.env.MCP_RATE_LIMIT ?? "120", 10),
+  max: rateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests. Retry after 60 seconds.", code: "RATE_LIMITED" },
@@ -255,7 +279,7 @@ function mcpAuthMiddleware(
     return;
   }
   const auth = req.headers.authorization ?? "";
-  if (auth !== `Bearer ${MCP_AUTH_TOKEN}`) {
+  if (!safeTokenEqual(auth, `Bearer ${MCP_AUTH_TOKEN}`)) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }

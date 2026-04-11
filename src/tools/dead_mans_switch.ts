@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { validateMarketId } from "../validation.js";
+import { logAudit } from "../audit.js";
 import type { OrdersResponse, OrderResponse } from "../types.js";
 
 // ---- Module-level timer state (persists across HTTP requests / tool invocations) ----
@@ -125,6 +126,7 @@ type ScheduleArgs = {
 export async function handleScheduleCancelAll(
   args: ScheduleArgs,
   client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const { market_id, ttl_seconds, confirmation_token } = args;
 
@@ -173,6 +175,7 @@ export async function handleScheduleCancelAll(
   const id = market_id.toLowerCase();
   const entry = armTimer(id, ttl_seconds, client);
 
+  logAudit({ ts: new Date().toISOString(), tool: "schedule_cancel_all", transport, args_summary: { market_id: market_id.toUpperCase(), ttl_seconds }, success: true });
   return {
     content: [
       {
@@ -334,7 +337,23 @@ export function register(
         .string()
         .describe("Market ID whose timer should be renewed (e.g. 'BTC-CLP')."),
     },
-    (args) => handleRenewCancelTimer(args, client),
+    (args) => {
+      if (transport === "http") {
+        return Promise.resolve({
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              error:
+                "renew_cancel_timer is not available on the HTTP transport. " +
+                "Timer state is process-local and only meaningful in stdio mode on a persistent local process.",
+              code: "TRANSPORT_NOT_SUPPORTED",
+            }),
+          }],
+          isError: true,
+        });
+      }
+      return Promise.resolve(handleRenewCancelTimer(args, client));
+    },
   );
 
   server.tool(
@@ -345,6 +364,22 @@ export function register(
         .string()
         .describe("Market ID whose timer should be disarmed (e.g. 'BTC-CLP')."),
     },
-    (args) => handleDisarmCancelTimer(args),
+    (args) => {
+      if (transport === "http") {
+        return Promise.resolve({
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              error:
+                "disarm_cancel_timer is not available on the HTTP transport. " +
+                "Timer state is process-local and only meaningful in stdio mode on a persistent local process.",
+              code: "TRANSPORT_NOT_SUPPORTED",
+            }),
+          }],
+          isError: true,
+        });
+      }
+      return Promise.resolve(handleDisarmCancelTimer(args));
+    },
   );
 }

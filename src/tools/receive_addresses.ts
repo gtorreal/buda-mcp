@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { validateCurrency } from "../validation.js";
+import { logAudit } from "../audit.js";
 import type { ReceiveAddressesResponse, SingleReceiveAddressResponse, ReceiveAddress } from "../types.js";
 
 export const createReceiveAddressToolSchema = {
@@ -114,7 +115,7 @@ export async function handleListReceiveAddresses(
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
@@ -147,7 +148,7 @@ export async function handleGetReceiveAddress(
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
@@ -159,6 +160,7 @@ export async function handleGetReceiveAddress(
 export async function handleCreateReceiveAddress(
   args: { currency: string; confirmation_token: string },
   client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const { currency, confirmation_token } = args;
 
@@ -193,18 +195,17 @@ export async function handleCreateReceiveAddress(
       `/currencies/${currency.toUpperCase()}/receive_addresses`,
       {},
     );
-    return {
-      content: [{ type: "text", text: JSON.stringify(normalizeAddress(data.receive_address), null, 2) }],
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(normalizeAddress(data.receive_address), null, 2) }] };
+    logAudit({ ts: new Date().toISOString(), tool: "create_receive_address", transport, args_summary: { currency }, success: true });
+    return result;
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
-    return {
-      content: [{ type: "text", text: JSON.stringify(msg) }],
-      isError: true,
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
+    logAudit({ ts: new Date().toISOString(), tool: "create_receive_address", transport, args_summary: { currency }, success: false, error_code: msg.code });
+    return result;
   }
 }
 

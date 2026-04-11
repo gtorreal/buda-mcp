@@ -11,6 +11,41 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.5.2] – 2026-04-11
+
+### Security
+
+- **Trust proxy configured for Railway** — added `app.set("trust proxy", 1)` to Express before any middleware. Without this, `express-rate-limit` saw the proxy IP for every request instead of the real client IP, making per-IP rate limiting effectively useless in the Railway deployment.
+
+- **Constant-time bearer token comparison** — `mcpAuthMiddleware` now uses `crypto.timingSafeEqual` via a new `safeTokenEqual()` helper (exported from `src/utils.ts`) instead of plain string equality, eliminating the theoretical timing side-channel on the `MCP_AUTH_TOKEN` comparison.
+
+- **PORT and MCP_RATE_LIMIT startup validation** — both environment variables are now parsed through a new `parseEnvInt(raw, fallback, min, max, name)` helper that throws a descriptive error and exits on `NaN` or out-of-range values, preventing silent misconfigurations (e.g. `MCP_RATE_LIMIT=abc` previously resolved to `NaN` and could disable the rate limiter).
+
+- **MCP_AUTH_TOKEN entropy warning** — server now emits a `console.warn` at startup if `MCP_AUTH_TOKEN` is set but shorter than 32 characters, nudging operators toward adequately random secrets.
+
+- **Dead man's switch fully isolated to stdio transport** — `renew_cancel_timer` and `disarm_cancel_timer` now also return `TRANSPORT_NOT_SUPPORTED` on HTTP transport (previously only `schedule_cancel_all` was blocked). An attacker with HTTP access could previously disarm or renew a timer armed via the stdio process, since both share the same module-level `timers` Map.
+
+- **Input validation in `compare_markets`** — `base_currency` is now validated with `validateCurrency()` before fetching tickers, consistent with all other tools that accept a currency parameter. Arbitrary-length strings no longer reach the cache or API.
+
+- **BOLT-11 invoice regex strengthened** — regex updated from `/^ln(bc|tb|bcrt)\d/i` to `/^ln(bc|tb|bcrt)\d*[munp]?1[a-z0-9]{20,}$/i`. The new pattern requires the bech32 separator `1`, at least 20 characters of bech32 data after it, and anchors at `$` — rejecting malformed strings that happen to start with the right prefix.
+
+- **API path redaction from error responses** — removed the `path` field from all `BudaApiError` catch blocks across 31 tool handlers. The field was included in MCP tool responses, leaking internal API endpoint patterns (e.g. `/currencies/BTC/withdrawals`) to clients. The `path` property still exists on `BudaApiError` for internal use in audit logs.
+
+- **Structured audit logging for destructive operations** — new `src/audit.ts` module with `logAudit(event: AuditEvent)` writes newline-delimited JSON to `process.stderr` for all 11 handlers with financial side-effects: `place_order`, `cancel_order`, `cancel_all_orders`, `cancel_order_by_client_id`, `place_batch_orders`, `create_withdrawal`, `lightning_withdrawal`, `create_receive_address`, `quote_remittance`, `accept_remittance_quote`, `schedule_cancel_all`. Audit events include `ts`, `tool`, `transport`, `args_summary` (sanitized — never includes `confirmation_token`, `invoice`, or `address`), `success`, and `error_code`. Each handler exposes an optional `transport` parameter (default `"stdio"`) for future HTTP-aware logging.
+
+### Added
+
+- **`safeTokenEqual(a, b)` utility** — exported from `src/utils.ts`; constant-time string comparison using `crypto.timingSafeEqual`. Usable by any future code that compares secrets.
+- **`parseEnvInt(raw, fallback, min, max, name)` utility** — exported from `src/utils.ts`; safe environment variable integer parsing with range validation. Used for `PORT` and `MCP_RATE_LIMIT` at startup.
+- **`handleCompareMarkets` exported handler** — `compare_markets.ts` logic extracted from the inline registration closure into a named, exported function for unit testability.
+
+### Tests
+
+- **+28 unit tests** covering all new security behaviors: `safeTokenEqual` (5 cases), `parseEnvInt` (6 cases), `handleCompareMarkets` validateCurrency guard (4 cases), improved BOLT-11 regex (3 cases), DMS HTTP transport guard for renew and disarm (4 cases), `logAudit` output format and secret redaction (3 cases), audit integration with `handlePlaceOrder` (1 case), `path` field absence in error responses (2 cases).
+- **Updated 3 existing test fixtures** — replaced placeholder invoice string `"lnbc1000u1ptest..."` (which contained dots — invalid bech32) with a well-formed test value that satisfies the improved BOLT-11 regex.
+
+---
+
 ## [1.5.1] – 2026-04-11
 
 ### Security

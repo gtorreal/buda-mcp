@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { flattenAmount } from "../utils.js";
+import { logAudit } from "../audit.js";
 import type { LightningWithdrawalResponse, LightningInvoiceResponse } from "../types.js";
 
 export const lightningWithdrawalToolSchema = {
@@ -69,6 +70,7 @@ type CreateLightningInvoiceArgs = {
 export async function handleLightningWithdrawal(
   args: LightningWithdrawalArgs,
   client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const { invoice, confirmation_token } = args;
 
@@ -91,7 +93,7 @@ export async function handleLightningWithdrawal(
     };
   }
 
-  const BOLT11_RE = /^ln(bc|tb|bcrt)\d/i;
+  const BOLT11_RE = /^ln(bc|tb|bcrt)\d*[munp]?1[a-z0-9]{20,}$/i;
   if (!BOLT11_RE.test(invoice)) {
     return {
       content: [{
@@ -117,10 +119,10 @@ export async function handleLightningWithdrawal(
     const amount = flattenAmount(lw.amount);
     const fee = flattenAmount(lw.fee);
 
-    return {
+    const result = {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify(
             {
               id: lw.id,
@@ -138,15 +140,16 @@ export async function handleLightningWithdrawal(
         },
       ],
     };
+    logAudit({ ts: new Date().toISOString(), tool: "lightning_withdrawal", transport, args_summary: {}, success: true });
+    return result;
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
-    return {
-      content: [{ type: "text", text: JSON.stringify(msg) }],
-      isError: true,
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
+    logAudit({ ts: new Date().toISOString(), tool: "lightning_withdrawal", transport, args_summary: {}, success: false, error_code: msg.code });
+    return result;
   }
 }
 
@@ -192,7 +195,7 @@ export async function handleCreateLightningInvoice(
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],

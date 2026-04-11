@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { validateMarketId } from "../validation.js";
+import { logAudit } from "../audit.js";
 import type { CancelAllOrdersResponse } from "../types.js";
 
 export const toolSchema = {
@@ -37,6 +38,7 @@ type CancelAllOrdersArgs = {
 export async function handleCancelAllOrders(
   args: CancelAllOrdersArgs,
   client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const { market_id, confirmation_token } = args;
 
@@ -76,23 +78,19 @@ export async function handleCancelAllOrders(
 
     const data = await client.delete<CancelAllOrdersResponse>(`/orders`, params);
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({ canceled_count: data.canceled_count, market_id }),
-        },
-      ],
+    const result = {
+      content: [{ type: "text" as const, text: JSON.stringify({ canceled_count: data.canceled_count, market_id }) }],
     };
+    logAudit({ ts: new Date().toISOString(), tool: "cancel_all_orders", transport, args_summary: { market_id }, success: true });
+    return result;
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
-    return {
-      content: [{ type: "text", text: JSON.stringify(msg) }],
-      isError: true,
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
+    logAudit({ ts: new Date().toISOString(), tool: "cancel_all_orders", transport, args_summary: { market_id }, success: false, error_code: msg.code });
+    return result;
   }
 }
 

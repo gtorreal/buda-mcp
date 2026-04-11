@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { validateMarketId } from "../validation.js";
+import { logAudit } from "../audit.js";
 import type { OrderResponse } from "../types.js";
 
 export const toolSchema = {
@@ -76,6 +77,7 @@ type BatchOrdersArgs = {
 export async function handlePlaceBatchOrders(
   args: BatchOrdersArgs,
   client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const { orders, max_notional, confirmation_token } = args;
 
@@ -202,9 +204,18 @@ export async function handlePlaceBatchOrders(
     response.warning = "Some orders failed. Already-placed orders were NOT rolled back.";
   }
 
+  const isError = failed > 0 && succeeded === 0 ? true : undefined;
+  logAudit({
+    ts: new Date().toISOString(),
+    tool: "place_batch_orders",
+    transport,
+    args_summary: { order_count: orders.length, succeeded, failed },
+    success: !isError,
+    error_code: isError ? "PARTIAL_OR_FULL_FAILURE" : undefined,
+  });
   return {
     content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
-    isError: failed > 0 && succeeded === 0 ? true : undefined,
+    isError,
   };
 }
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { flattenAmount } from "../utils.js";
 import { validateCurrency } from "../validation.js";
+import { logAudit } from "../audit.js";
 import type { RemittancesResponse, SingleRemittanceResponse, Remittance } from "../types.js";
 
 export const listRemittancesToolSchema = {
@@ -152,7 +153,7 @@ export async function handleListRemittances(
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
@@ -173,7 +174,7 @@ export async function handleGetRemittance(
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
@@ -185,6 +186,7 @@ export async function handleGetRemittance(
 export async function handleQuoteRemittance(
   args: { currency: string; amount: number; recipient_id: number; confirmation_token: string },
   client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const { currency, amount, recipient_id, confirmation_token } = args;
 
@@ -222,24 +224,24 @@ export async function handleQuoteRemittance(
         recipient_id,
       },
     });
-    return {
-      content: [{ type: "text", text: JSON.stringify(normalizeRemittance(data.remittance), null, 2) }],
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(normalizeRemittance(data.remittance), null, 2) }] };
+    logAudit({ ts: new Date().toISOString(), tool: "quote_remittance", transport, args_summary: { currency, amount, recipient_id }, success: true });
+    return result;
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
-    return {
-      content: [{ type: "text", text: JSON.stringify(msg) }],
-      isError: true,
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
+    logAudit({ ts: new Date().toISOString(), tool: "quote_remittance", transport, args_summary: { currency, amount, recipient_id }, success: false, error_code: msg.code });
+    return result;
   }
 }
 
 export async function handleAcceptRemittanceQuote(
   args: { id: number; confirmation_token: string },
   client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const { id, confirmation_token } = args;
 
@@ -264,18 +266,17 @@ export async function handleAcceptRemittanceQuote(
     const data = await client.put<SingleRemittanceResponse>(`/remittances/${id}`, {
       remittance: { state: "confirming" },
     });
-    return {
-      content: [{ type: "text", text: JSON.stringify(normalizeRemittance(data.remittance), null, 2) }],
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(normalizeRemittance(data.remittance), null, 2) }] };
+    logAudit({ ts: new Date().toISOString(), tool: "accept_remittance_quote", transport, args_summary: { remittance_id: id }, success: true });
+    return result;
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
-    return {
-      content: [{ type: "text", text: JSON.stringify(msg) }],
-      isError: true,
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
+    logAudit({ ts: new Date().toISOString(), tool: "accept_remittance_quote", transport, args_summary: { remittance_id: id }, success: false, error_code: msg.code });
+    return result;
   }
 }
 

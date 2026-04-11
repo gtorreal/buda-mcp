@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { validateCurrency, validateCryptoAddress } from "../validation.js";
 import { flattenAmount } from "../utils.js";
+import { logAudit } from "../audit.js";
 import type { WithdrawalsResponse, SingleWithdrawalResponse, Withdrawal } from "../types.js";
 
 export const getWithdrawalHistoryToolSchema = {
@@ -106,7 +107,7 @@ export async function handleGetWithdrawalHistory(
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
     return {
       content: [{ type: "text", text: JSON.stringify(msg) }],
@@ -152,6 +153,7 @@ type CreateWithdrawalArgs = {
 export async function handleCreateWithdrawal(
   args: CreateWithdrawalArgs,
   client: BudaClient,
+  transport: "http" | "stdio" = "stdio",
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   const { currency, amount, address, network, bank_account_id, confirmation_token } = args;
 
@@ -238,18 +240,17 @@ export async function handleCreateWithdrawal(
       payload,
     );
 
-    return {
-      content: [{ type: "text", text: JSON.stringify(normalizeWithdrawal(data.withdrawal), null, 2) }],
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(normalizeWithdrawal(data.withdrawal), null, 2) }] };
+    logAudit({ ts: new Date().toISOString(), tool: "create_withdrawal", transport, args_summary: { currency, amount, type: hasAddress ? "crypto" : "fiat" }, success: true });
+    return result;
   } catch (err) {
     const msg =
       err instanceof BudaApiError
-        ? { error: err.message, code: err.status, path: err.path }
+        ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
-    return {
-      content: [{ type: "text", text: JSON.stringify(msg) }],
-      isError: true,
-    };
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
+    logAudit({ ts: new Date().toISOString(), tool: "create_withdrawal", transport, args_summary: { currency, amount, type: hasAddress ? "crypto" : "fiat" }, success: false, error_code: msg.code });
+    return result;
   }
 }
 
