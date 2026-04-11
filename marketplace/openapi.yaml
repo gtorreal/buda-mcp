@@ -7,11 +7,14 @@ info:
     Provides live prices, spreads, OHLCV history, order books, trade history, and volume for all markets.
     No authentication required for public tools.
 
+    All response schemas are flat and typed: monetary amounts are returned as floats with
+    separate _currency fields instead of [amount, currency] arrays.
+
     **Note:** This spec describes a deployed HTTP wrapper around the buda-mcp
     stdio server. Deploy locally with mcp-proxy:
       mcp-proxy --port 8000 -- npx -y @guiie/buda-mcp
     Or point `servers[0].url` at your hosted instance.
-  version: 1.2.0
+  version: 1.3.0
   contact:
     url: https://github.com/gtorreal/buda-mcp
 
@@ -25,8 +28,10 @@ paths:
       operationId: getMarkets
       summary: List all trading pairs
       description: |
-        Returns all available markets on Buda.com, or details for a single market.
-        Each market entry includes base/quote currencies, trading fees, and minimum order amounts.
+        Lists all available markets on Buda.com, or details for a single market.
+        Each market entry includes base/quote currencies, taker/maker fees as decimals,
+        minimum order amount, and fee discount tiers.
+        Example: 'What is the taker fee and minimum order size for BTC-CLP?'
       parameters:
         - name: market_id
           in: query
@@ -56,6 +61,8 @@ paths:
       description: |
         Returns the current market snapshot: last traded price, best bid (max_bid),
         best ask (min_ask), 24h volume, and price change over 24h and 7d.
+        All prices are floats in the quote currency. price_variation_24h is a decimal fraction.
+        Example: 'What is the current Bitcoin price in Chilean pesos?'
       parameters:
         - name: market_id
           in: query
@@ -79,8 +86,10 @@ paths:
       operationId: getOrderbook
       summary: Order book for a market
       description: |
-        Returns the current limit order book: sorted arrays of bids (buy orders)
-        and asks (sell orders). Each entry is [price, amount].
+        Returns the current limit order book as typed objects with float price and amount fields.
+        Bids are sorted highest-price first; asks lowest-price first.
+        Prices are in the quote currency; amounts are in the base currency.
+        Example: 'What are the top 5 buy and sell orders for BTC-CLP right now?'
       parameters:
         - name: market_id
           in: query
@@ -112,8 +121,10 @@ paths:
       operationId: getTrades
       summary: Recent trade history for a market
       description: |
-        Returns recent trades. Each entry is [timestamp_ms, amount, price, direction]
-        where direction is "buy" or "sell".
+        Returns recent trades as typed objects with float fields.
+        Each entry has timestamp_ms (integer), amount (float, base currency),
+        price (float, quote currency), and direction ("buy" or "sell").
+        Example: 'What was the last executed price for BTC-CLP and was it a buy or sell?'
       parameters:
         - name: market_id
           in: query
@@ -155,8 +166,9 @@ paths:
       operationId: getMarketVolume
       summary: 24h and 7-day volume for a market
       description: |
-        Returns transacted volume broken down by side (ask = sell, bid = buy)
-        and time window (24h and 7d). Amounts are in the market's base currency.
+        Returns transacted volume as floats broken down by side (ask = sell, bid = buy)
+        and time window (24h and 7d). All volumes are in the market's base currency.
+        Example: 'How much Bitcoin was sold on BTC-CLP in the last 24 hours?'
       parameters:
         - name: market_id
           in: query
@@ -180,8 +192,9 @@ paths:
       operationId: getSpread
       summary: Bid/ask spread for a market
       description: |
-        Returns the best bid price, best ask price, absolute spread, and spread as a percentage
-        of the ask price. Useful for assessing market liquidity.
+        Returns the best bid price, best ask price, absolute spread, and spread percentage
+        as floats. spread_percentage is in percent (e.g. 0.15 means 0.15%).
+        Example: 'Is BTC-CLP liquid enough to buy 10M CLP without significant slippage?'
       parameters:
         - name: market_id
           in: query
@@ -206,8 +219,9 @@ paths:
       summary: Compare all pairs of a base currency side by side
       description: |
         Returns ticker data for all trading pairs of a given base currency across all supported
-        quote currencies (CLP, COP, PEN, USDC, BTC, ETH). For example, base_currency=BTC returns
-        data for BTC-CLP, BTC-COP, BTC-PEN, and BTC-USDC.
+        quote currencies (CLP, COP, PEN, USDC, BTC, ETH). All prices and change values are floats.
+        price_change_24h is in percent (e.g. 1.23 means +1.23%).
+        Example: 'In which country is Bitcoin currently most expensive on Buda?'
       parameters:
         - name: base_currency
           in: query
@@ -233,8 +247,10 @@ paths:
       description: |
         IMPORTANT: Candles are aggregated client-side from raw trades (Buda has no native
         candlestick endpoint) — increase 'limit' for deeper history but expect slower responses.
-        Returns OHLCV (open/high/low/close/volume) candles. Candle timestamps are UTC bucket
-        boundaries. Supports 1h, 4h, and 1d candle periods.
+        Returns OHLCV candles with float values (open/high/low/close in quote currency,
+        volume in base currency). Candle timestamps are UTC bucket boundaries.
+        Supports 1h, 4h, and 1d candle periods.
+        Example: 'Show me the hourly BTC-CLP price chart for the past 24 hours.'
       parameters:
         - name: market_id
           in: query
@@ -269,17 +285,73 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /get_market_summary:
+    get:
+      operationId: getMarketSummary
+      summary: Complete market overview in a single call
+      description: |
+        One-call summary of everything relevant about a market: last price, best bid/ask,
+        spread %, 24h volume, 24h and 7d price change, and a liquidity_rating.
+        liquidity_rating: "high" (spread < 0.3%), "medium" (0.3–1%), "low" (> 1%).
+        All prices and volumes are floats. Best first tool to call when a user asks about a specific market.
+        Example: 'Give me a complete overview of the BTC-CLP market right now.'
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP", "ETH-COP"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC-CLP
+      responses:
+        "200":
+          description: Full market summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketSummaryResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /get_arbitrage_opportunities:
+    get:
+      operationId: getArbitrageOpportunities
+      summary: Cross-country price discrepancies normalized to USDC
+      description: |
+        Detects price discrepancies for a given asset across Buda's CLP, COP, and PEN markets,
+        normalized to USDC using current exchange rates. Returns pairwise discrepancies above
+        threshold_pct, sorted descending by opportunity size.
+        IMPORTANT: Buda taker fee is 0.8% per leg (~1.6% round-trip). Deduct fees before acting.
+        Example: 'Is there an arbitrage opportunity for BTC between Chile and Peru right now?'
+      parameters:
+        - name: base_currency
+          in: query
+          required: true
+          description: Base asset to scan (e.g. "BTC", "ETH"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC
+        - name: threshold_pct
+          in: query
+          required: false
+          description: Minimum discrepancy percentage to include (default 0.5). Round-trip fees ~1.6%.
+          schema:
+            type: number
+            minimum: 0
+            default: 0.5
+            example: 1.0
+      responses:
+        "200":
+          description: Arbitrage opportunities found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArbitrageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   schemas:
-    Amount:
-      type: array
-      description: Monetary amount as [value_string, currency_code]
-      items:
-        type: string
-      minItems: 2
-      maxItems: 2
-      example: ["65929908.0", "CLP"]
-
     Market:
       type: object
       properties:
@@ -296,7 +368,10 @@ components:
           type: string
           example: CLP
         minimum_order_amount:
-          $ref: "#/components/schemas/Amount"
+          type: array
+          items:
+            type: string
+          example: ["0.00001", "BTC"]
         taker_fee:
           type: string
           example: "0.8"
@@ -325,55 +400,67 @@ components:
         market:
           $ref: "#/components/schemas/Market"
 
-    Ticker:
+    TickerResponse:
       type: object
       properties:
         market_id:
           type: string
           example: BTC-CLP
         last_price:
-          $ref: "#/components/schemas/Amount"
-        max_bid:
-          $ref: "#/components/schemas/Amount"
+          type: number
+          example: 65675000
+        last_price_currency:
+          type: string
+          example: CLP
         min_ask:
-          $ref: "#/components/schemas/Amount"
+          type: number
+          example: 65678531
+        min_ask_currency:
+          type: string
+          example: CLP
+        max_bid:
+          type: number
+          example: 65675000
+        max_bid_currency:
+          type: string
+          example: CLP
         volume:
-          $ref: "#/components/schemas/Amount"
+          type: number
+          example: 5.00837363
+        volume_currency:
+          type: string
+          example: BTC
         price_variation_24h:
-          type: string
-          description: Decimal fraction (e.g. "0.014" = +1.4%)
-          example: "0.014"
+          type: number
+          description: Decimal fraction (e.g. 0.019 = +1.9%)
+          example: 0.019
         price_variation_7d:
-          type: string
-          example: "-0.032"
+          type: number
+          example: -0.032
 
-    TickerResponse:
+    OrderBookEntry:
       type: object
       properties:
-        ticker:
-          $ref: "#/components/schemas/Ticker"
+        price:
+          type: number
+          example: 65675000
+        amount:
+          type: number
+          example: 0.01520608
 
     OrderBookResponse:
       type: object
       properties:
         bids:
           type: array
-          description: Buy orders sorted best-first, each [price, amount]
+          description: Buy orders sorted highest-price first
           items:
-            type: array
-            items:
-              type: string
-            minItems: 2
-            maxItems: 2
+            $ref: "#/components/schemas/OrderBookEntry"
         asks:
           type: array
-          description: Sell orders sorted best-first, each [price, amount]
+          description: Sell orders sorted lowest-price first
           items:
-            type: array
-            items:
-              type: string
-            minItems: 2
-            maxItems: 2
+            $ref: "#/components/schemas/OrderBookEntry"
         bid_count:
           type: integer
           description: Total number of bid levels in the full book
@@ -382,51 +469,69 @@ components:
           description: Total number of ask levels in the full book
 
     TradeEntry:
-      type: array
-      description: "[timestamp_ms, amount, price, direction]"
-      items:
-        type: string
-      minItems: 4
-      maxItems: 4
-      example: ["1775857164247", "0.00113757", "65929908.0", "buy"]
+      type: object
+      properties:
+        timestamp_ms:
+          type: integer
+          example: 1775857164247
+        amount:
+          type: number
+          example: 0.00113757
+        price:
+          type: number
+          example: 65675000
+        direction:
+          type: string
+          enum: [buy, sell]
+          example: buy
 
     TradesResponse:
       type: object
       properties:
-        trades:
-          type: object
-          properties:
-            market_id:
-              type: string
-              example: BTC-CLP
-            timestamp:
-              type: string
-              description: Most recent trade timestamp (ms)
-            last_timestamp:
-              type: string
-              description: Oldest trade timestamp in this response (ms)
-            entries:
-              type: array
-              items:
-                $ref: "#/components/schemas/TradeEntry"
+        timestamp:
+          type: string
+          description: Most recent trade timestamp (ms)
+        last_timestamp:
+          type: string
+          description: Oldest trade timestamp in this response (ms)
+        market_id:
+          type: string
+          example: BTC-CLP
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/TradeEntry"
 
     VolumeResponse:
       type: object
       properties:
-        volume:
-          type: object
-          properties:
-            market_id:
-              type: string
-              example: BTC-CLP
-            ask_volume_24h:
-              $ref: "#/components/schemas/Amount"
-            ask_volume_7d:
-              $ref: "#/components/schemas/Amount"
-            bid_volume_24h:
-              $ref: "#/components/schemas/Amount"
-            bid_volume_7d:
-              $ref: "#/components/schemas/Amount"
+        market_id:
+          type: string
+          example: BTC-CLP
+        ask_volume_24h:
+          type: number
+          example: 0.63744329
+        ask_volume_24h_currency:
+          type: string
+          example: BTC
+        ask_volume_7d:
+          type: number
+          example: 7.41219004
+        ask_volume_7d_currency:
+          type: string
+          example: BTC
+        bid_volume_24h:
+          type: number
+          example: 4.37093034
+        bid_volume_24h_currency:
+          type: string
+          example: BTC
+        bid_volume_7d:
+          type: number
+          example: 11.93962368
+        bid_volume_7d_currency:
+          type: string
+          example: BTC
 
     SpreadResponse:
       type: object
@@ -434,24 +539,25 @@ components:
         market_id:
           type: string
           example: BTC-CLP
-        currency:
+        price_currency:
           type: string
           example: CLP
         best_bid:
-          type: string
-          example: "65221128.0"
+          type: number
+          example: 65675000
         best_ask:
-          type: string
-          example: "65727568.0"
+          type: number
+          example: 65678531
         spread_absolute:
-          type: string
-          example: "506440.00"
+          type: number
+          example: 3531
         spread_percentage:
-          type: string
-          example: "0.7705%"
+          type: number
+          description: Spread as percent of ask price (e.g. 0.0054 means 0.0054%)
+          example: 0.0054
         last_price:
-          type: string
-          example: "65221078.43"
+          type: number
+          example: 65675000
 
     CompareMarketsResponse:
       type: object
@@ -468,23 +574,24 @@ components:
                 type: string
                 example: BTC-CLP
               last_price:
-                type: string
-                example: "65221078.43"
-              currency:
+                type: number
+                example: 65675000
+              last_price_currency:
                 type: string
                 example: CLP
               best_bid:
-                type: string
+                type: number
               best_ask:
-                type: string
+                type: number
               volume_24h:
-                type: string
+                type: number
               price_change_24h:
-                type: string
-                example: "0.30%"
+                type: number
+                description: In percent (e.g. 1.23 means +1.23%)
+                example: 1.23
               price_change_7d:
-                type: string
-                example: "-1.20%"
+                type: number
+                example: -1.20
 
     OhlcvCandle:
       type: object
@@ -494,20 +601,20 @@ components:
           format: date-time
           example: "2026-04-10T12:00:00.000Z"
         open:
-          type: string
-          example: "65221078.43"
+          type: number
+          example: 65221078.43
         high:
-          type: string
-          example: "65975364.0"
+          type: number
+          example: 65975364
         low:
-          type: string
-          example: "65164404.87"
+          type: number
+          example: 65164404.87
         close:
-          type: string
-          example: "65386647.0"
+          type: number
+          example: 65386647
         volume:
-          type: string
-          example: "0.52341200"
+          type: number
+          example: 0.52341200
         trade_count:
           type: integer
           example: 12
@@ -524,12 +631,121 @@ components:
         candle_count:
           type: integer
           example: 6
+        trades_fetched:
+          type: integer
+          example: 100
         note:
           type: string
         candles:
           type: array
           items:
             $ref: "#/components/schemas/OhlcvCandle"
+
+    MarketSummaryResponse:
+      type: object
+      properties:
+        market_id:
+          type: string
+          example: BTC-CLP
+        last_price:
+          type: number
+          example: 65675000
+        last_price_currency:
+          type: string
+          example: CLP
+        bid:
+          type: number
+          example: 65675000
+        ask:
+          type: number
+          example: 65678531
+        spread_pct:
+          type: number
+          description: Bid/ask spread as percentage of ask
+          example: 0.0054
+        volume_24h:
+          type: number
+          example: 5.00837363
+        volume_24h_currency:
+          type: string
+          example: BTC
+        price_change_24h:
+          type: number
+          description: In percent (e.g. 1.9 means +1.9%)
+          example: 1.9
+        price_change_7d:
+          type: number
+          example: -3.2
+        liquidity_rating:
+          type: string
+          enum: [high, medium, low]
+          description: "high: spread < 0.3%, medium: 0.3–1%, low: > 1%"
+          example: high
+
+    ArbitrageMarketPrice:
+      type: object
+      properties:
+        market_id:
+          type: string
+          example: BTC-CLP
+        price_usdc:
+          type: number
+          example: 65675
+        local_price:
+          type: number
+          example: 65675000
+        usdc_rate:
+          type: number
+          example: 1000
+
+    ArbitrageOpportunity:
+      type: object
+      properties:
+        market_a:
+          type: string
+          example: BTC-CLP
+        market_b:
+          type: string
+          example: BTC-PEN
+        price_a_usdc:
+          type: number
+          example: 65675
+        price_b_usdc:
+          type: number
+          example: 67568
+        discrepancy_pct:
+          type: number
+          example: 2.88
+        higher_market:
+          type: string
+          example: BTC-PEN
+        lower_market:
+          type: string
+          example: BTC-CLP
+
+    ArbitrageResponse:
+      type: object
+      properties:
+        base_currency:
+          type: string
+          example: BTC
+        threshold_pct:
+          type: number
+          example: 0.5
+        markets_analyzed:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArbitrageMarketPrice"
+        opportunities_found:
+          type: integer
+          example: 1
+        opportunities:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArbitrageOpportunity"
+        fees_note:
+          type: string
+          example: "Buda taker fee is 0.8% per leg. A round-trip arbitrage costs approximately 1.6% in fees."
 
     Error:
       type: object

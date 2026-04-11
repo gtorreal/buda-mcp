@@ -1,9 +1,9 @@
 {
-  "_comment": "Gemini function declarations for buda-mcp v1.2.0. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
+  "_comment": "Gemini function declarations for buda-mcp v1.3.0. Pass this array as the `tools[0].functionDeclarations` field when calling the Gemini API. See: https://ai.google.dev/gemini-api/docs/function-calling",
   "functionDeclarations": [
     {
       "name": "get_markets",
-      "description": "List all available cryptocurrency trading pairs on Buda.com (Chile, Colombia, Peru), or get details for a specific market. Returns base/quote currencies, maker/taker fees, and minimum order sizes.",
+      "description": "Lists all available trading pairs on Buda.com, or returns details for a specific market (base/quote currencies, taker/maker fees as decimals, minimum order size in base currency, and fee discount tiers). Omit market_id to get all ~26 markets at once. Example: 'What is the taker fee and minimum order size for BTC-CLP?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -17,7 +17,7 @@
     },
     {
       "name": "get_ticker",
-      "description": "Get the current market ticker for a Buda.com trading pair. Returns the last traded price, best bid (max_bid), best ask (min_ask), 24-hour volume, and price change percentage over 24 hours and 7 days.",
+      "description": "Returns the current market snapshot for a Buda.com market: last traded price, best bid, best ask, 24h volume, and price change over 24h and 7d. All prices are floats in the quote currency (e.g. CLP for BTC-CLP). price_variation_24h is a decimal fraction (0.012 = +1.2%). Example: 'What is the current Bitcoin price in Chilean pesos?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -31,7 +31,7 @@
     },
     {
       "name": "get_orderbook",
-      "description": "Get the current limit order book for a Buda.com market. Returns sorted arrays of bids (buy orders) and asks (sell orders). Each entry is a [price, amount] pair. Useful for analyzing market depth and calculating slippage.",
+      "description": "Returns the current order book for a Buda.com market as typed objects with float price and amount fields. Bids are sorted highest-price first; asks lowest-price first. Prices are in the quote currency; amounts are in the base currency. Example: 'What are the top 5 buy and sell orders for BTC-CLP right now?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -49,7 +49,7 @@
     },
     {
       "name": "get_trades",
-      "description": "Get recent trade history for a Buda.com market. Each trade entry contains [timestamp_ms, amount, price, direction] where direction is 'buy' or 'sell'. Supports pagination via the timestamp parameter.",
+      "description": "Returns recent trade history for a Buda.com market as typed objects. Each entry has timestamp_ms (integer), amount (float, base currency), price (float, quote currency), and direction ('buy' or 'sell'). Example: 'What was the last executed price for BTC-CLP and was it a buy or sell?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -71,7 +71,7 @@
     },
     {
       "name": "get_market_volume",
-      "description": "Get 24-hour and 7-day transacted volume for a Buda.com market, broken down by side: ask_volume (sell orders) and bid_volume (buy orders). Amounts are in the market's base currency.",
+      "description": "Returns 24h and 7-day transacted volume for a Buda.com market, split by buy (bid) and sell (ask) side. All volume values are floats in the base currency (e.g. BTC for BTC-CLP). Example: 'How much Bitcoin was sold on BTC-CLP in the last 24 hours?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -85,7 +85,7 @@
     },
     {
       "name": "get_spread",
-      "description": "Calculate the bid/ask spread for a Buda.com market. Returns the best bid price, best ask price, absolute spread, and spread as a percentage of the ask price. Useful for assessing market liquidity.",
+      "description": "Returns the best bid, best ask, absolute spread, and spread percentage for a Buda.com market. All prices are floats in the quote currency (e.g. CLP). spread_percentage is a float in percent (e.g. 0.15 means 0.15%). Use this to evaluate liquidity before placing a large order. Example: 'Is BTC-CLP liquid enough to buy 10M CLP without significant slippage?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -99,7 +99,7 @@
     },
     {
       "name": "compare_markets",
-      "description": "Compare ticker data side-by-side for all trading pairs of a given base currency across Buda.com's supported quote currencies (CLP, COP, PEN, USDC, BTC, ETH). For example, 'BTC' returns data for BTC-CLP, BTC-COP, BTC-PEN, and BTC-USDC.",
+      "description": "Returns side-by-side ticker data for all trading pairs of a given base currency across Buda.com's supported quote currencies (CLP, COP, PEN, BTC, USDC, ETH). All prices are floats; price_change_24h and price_change_7d are floats in percent (e.g. 1.23 means +1.23%). Example: 'In which country is Bitcoin currently most expensive on Buda?'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -113,7 +113,7 @@
     },
     {
       "name": "get_price_history",
-      "description": "IMPORTANT: Candles are aggregated client-side from raw trades (Buda has no native candlestick endpoint) — increase 'limit' for deeper history. Returns OHLCV (open/high/low/close/volume) price history for a Buda.com market. Candle timestamps are UTC bucket boundaries. Supports 1h, 4h, and 1d candle periods.",
+      "description": "IMPORTANT: Candles are aggregated client-side from raw trades (Buda has no native candlestick endpoint) — fetching more trades via the 'limit' parameter gives deeper history but slower responses. Returns OHLCV candles (open/high/low/close as floats in quote currency; volume as float in base currency) for periods 1h, 4h, or 1d. Candle timestamps are UTC bucket boundaries. Example: 'Show me the hourly BTC-CLP price chart for the past 24 hours.'",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -131,6 +131,38 @@
           }
         },
         "required": ["market_id"]
+      }
+    },
+    {
+      "name": "get_market_summary",
+      "description": "One-call summary of everything relevant about a market: last price, best bid/ask, spread %, 24h volume, 24h and 7d price change, and a liquidity_rating ('high' / 'medium' / 'low' based on spread thresholds: < 0.3% = high, 0.3–1% = medium, > 1% = low). All prices and volumes are floats. Best first tool to call when a user asks about any specific market. Example: 'Give me a complete overview of the BTC-CLP market right now.'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "market_id": {
+            "type": "STRING",
+            "description": "Market identifier such as 'BTC-CLP', 'ETH-COP', or 'BTC-PEN'. Case-insensitive."
+          }
+        },
+        "required": ["market_id"]
+      }
+    },
+    {
+      "name": "get_arbitrage_opportunities",
+      "description": "Detects cross-country price discrepancies for a given asset across Buda's CLP, COP, and PEN markets, normalized to USDC. Fetches all relevant tickers, converts each local price to USDC using the current USDC-CLP / USDC-COP / USDC-PEN rates, then computes pairwise discrepancy percentages. Results above threshold_pct are returned sorted by opportunity size. Note: Buda taker fee is 0.8% per leg (~1.6% round-trip) — always deduct fees before acting on any discrepancy. Example: 'Is there an arbitrage opportunity for BTC between Chile and Peru right now?'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {
+          "base_currency": {
+            "type": "STRING",
+            "description": "Base asset to scan. Examples: 'BTC', 'ETH', 'XRP'. Case-insensitive."
+          },
+          "threshold_pct": {
+            "type": "NUMBER",
+            "description": "Minimum price discrepancy percentage to include in results (default: 0.5). Buda taker fee is 0.8% per leg, so a round-trip requires > 1.6% to be profitable."
+          }
+        },
+        "required": ["base_currency"]
       }
     }
   ]

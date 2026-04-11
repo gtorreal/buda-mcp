@@ -8,8 +8,10 @@ import type { TickerResponse } from "../types.js";
 export const toolSchema = {
   name: "get_spread",
   description:
-    "Calculate the bid/ask spread for a Buda.com market. " +
-    "Returns the best bid, best ask, absolute spread, and spread as a percentage of the ask price.",
+    "Returns the best bid, best ask, absolute spread, and spread percentage for a Buda.com market. " +
+    "All prices are floats in the quote currency (e.g. CLP). spread_percentage is a float in percent " +
+    "(e.g. 0.15 means 0.15%). Use this to evaluate liquidity before placing a large order. " +
+    "Example: 'Is BTC-CLP liquid enough to buy 10M CLP without significant slippage?'",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -70,12 +72,12 @@ export function register(server: McpServer, client: BudaClient, cache: MemoryCac
 
         const result = {
           market_id: ticker.market_id,
-          currency,
-          best_bid: bid.toString(),
-          best_ask: ask.toString(),
-          spread_absolute: spreadAbs.toFixed(2),
-          spread_percentage: spreadPct.toFixed(4) + "%",
-          last_price: ticker.last_price[0],
+          price_currency: currency,
+          best_bid: bid,
+          best_ask: ask,
+          spread_absolute: parseFloat(spreadAbs.toFixed(2)),
+          spread_percentage: parseFloat(spreadPct.toFixed(4)),
+          last_price: parseFloat(ticker.last_price[0]),
         };
 
         return {

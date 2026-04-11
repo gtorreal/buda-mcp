@@ -8,8 +8,10 @@ import type { OrderBookResponse } from "../types.js";
 export const toolSchema = {
   name: "get_orderbook",
   description:
-    "Get the current order book (bids and asks) for a Buda.com market. Returns sorted arrays of " +
-    "bids (buy orders) and asks (sell orders), each as [price, amount] pairs.",
+    "Returns the current order book for a Buda.com market as typed objects with float price and amount fields. " +
+    "Bids are sorted highest-price first; asks lowest-price first. " +
+    "Prices are in the quote currency; amounts are in the base currency. " +
+    "Example: 'What are the top 5 buy and sell orders for BTC-CLP right now?'",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -59,9 +61,18 @@ export function register(server: McpServer, client: BudaClient, cache: MemoryCac
         );
 
         const book = data.order_book;
+        const bids = limit ? book.bids.slice(0, limit) : book.bids;
+        const asks = limit ? book.asks.slice(0, limit) : book.asks;
+
         const result = {
-          bids: limit ? book.bids.slice(0, limit) : book.bids,
-          asks: limit ? book.asks.slice(0, limit) : book.asks,
+          bids: bids.map(([price, amount]) => ({
+            price: parseFloat(price),
+            amount: parseFloat(amount),
+          })),
+          asks: asks.map(([price, amount]) => ({
+            price: parseFloat(price),
+            amount: parseFloat(amount),
+          })),
           bid_count: book.bids.length,
           ask_count: book.asks.length,
         };

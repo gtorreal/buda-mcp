@@ -7,9 +7,10 @@ import type { AllTickersResponse } from "../types.js";
 export const toolSchema = {
   name: "compare_markets",
   description:
-    "Compare ticker data for all trading pairs of a given base currency across Buda.com's " +
-    "supported quote currencies (CLP, COP, PEN, BTC, USDC, ETH). " +
-    "For example, passing 'BTC' returns side-by-side data for BTC-CLP, BTC-COP, BTC-PEN, etc.",
+    "Returns side-by-side ticker data for all trading pairs of a given base currency across Buda.com's " +
+    "supported quote currencies (CLP, COP, PEN, BTC, USDC, ETH). All prices are floats; " +
+    "price_change_24h and price_change_7d are floats in percent (e.g. 1.23 means +1.23%). " +
+    "Example: 'In which country is Bitcoin currently most expensive on Buda?'",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -67,16 +68,16 @@ export function register(server: McpServer, client: BudaClient, cache: MemoryCac
           base_currency: base,
           markets: matching.map((t) => ({
             market_id: t.market_id,
-            last_price: t.last_price[0],
-            currency: t.last_price[1],
-            best_bid: t.max_bid ? t.max_bid[0] : null,
-            best_ask: t.min_ask ? t.min_ask[0] : null,
-            volume_24h: t.volume ? t.volume[0] : null,
+            last_price: parseFloat(t.last_price[0]),
+            last_price_currency: t.last_price[1],
+            best_bid: t.max_bid ? parseFloat(t.max_bid[0]) : null,
+            best_ask: t.min_ask ? parseFloat(t.min_ask[0]) : null,
+            volume_24h: t.volume ? parseFloat(t.volume[0]) : null,
             price_change_24h: t.price_variation_24h
-              ? (parseFloat(t.price_variation_24h) * 100).toFixed(2) + "%"
+              ? parseFloat((parseFloat(t.price_variation_24h) * 100).toFixed(4))
               : null,
             price_change_7d: t.price_variation_7d
-              ? (parseFloat(t.price_variation_7d) * 100).toFixed(2) + "%"
+              ? parseFloat((parseFloat(t.price_variation_7d) * 100).toFixed(4))
               : null,
           })),
         };

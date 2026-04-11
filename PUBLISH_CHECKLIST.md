@@ -1,6 +1,6 @@
-# Publish Checklist — buda-mcp v1.2.0
+# Publish Checklist — buda-mcp v1.3.0
 
-Steps to publish `v1.2.0` to npm, the MCP registry, and notify community directories.
+Steps to publish `v1.3.0` to npm, the MCP registry, and notify community directories.
 
 ---
 
@@ -8,7 +8,7 @@ Steps to publish `v1.2.0` to npm, the MCP registry, and notify community directo
 
 ```bash
 # Confirm version
-node -e "console.log(require('./package.json').version)"  # should print 1.2.0
+node -e "console.log(require('./package.json').version)"  # should print 1.3.0
 
 # Build and test
 npm run build
@@ -39,18 +39,17 @@ Verify: https://www.npmjs.com/package/@guiie/buda-mcp
 
 ```bash
 git add -A
-git commit -m "chore: release v1.2.0
+git commit -m "chore: release v1.3.0
 
-- Single version source-of-truth via src/version.ts (no more hardcoded strings)
-- Programmatic server-card in http.ts (toolSchema exported per tool)
-- .env.example with documented BUDA_API_KEY / BUDA_API_SECRET
-- Input sanitization: validateMarketId regex on all market_id inputs
-- 429 retry with Retry-After (seconds, per RFC 7231), default 1s
-- get_price_history: limit raised to 1000, UTC bucketing documented
-- 23 unit tests: HMAC signing, cache dedup, confirmation guard, sanitization, 429 retry
-- Integration tests: graceful skip when Buda API is unreachable"
+- Flatten all response schemas: all monetary amounts now floats with _currency fields
+- get_arbitrage_opportunities: cross-country price discrepancy detection (USDC-normalized)
+- get_market_summary: one-call market overview with liquidity_rating
+- buda://summary/{market} MCP Resource
+- Rewritten tool descriptions with concrete examples and units
+- 35 unit tests (12 new: flattenAmount, arbitrage discrepancy, liquidity_rating thresholds)
+- src/utils.ts: shared flattenAmount() and getLiquidityRating() helpers"
 
-git tag v1.2.0
+git tag v1.3.0
 git push origin main --tags
 ```
 
@@ -61,27 +60,35 @@ Then create a GitHub Release from the tag with the following release notes:
 **Release notes template (GitHub):**
 
 ```
-## buda-mcp v1.2.0
+## buda-mcp v1.3.0 — Output Quality
 
 ### What's new
 
-**Bug fixes & maintenance**
-- Single version source-of-truth: all version strings now read from `package.json` at startup via `src/version.ts` — no more drift between files
-- `http.ts` server-card assembled programmatically from exported `toolSchema` constants — adding a tool no longer requires touching `http.ts`
+**Flat, typed response schemas (breaking change for field consumers)**
+All tools now return floats instead of `["amount", "currency"]` arrays.
+Every monetary Amount is split into a `value` (float) and `_currency` (string) field.
+For example, `last_price: ["65000000", "CLP"]` → `last_price: 65000000, last_price_currency: "CLP"`.
+Affected tools: get_ticker, get_market_volume, get_orderbook, get_trades, get_spread,
+compare_markets, get_price_history, get_balances, get_orders.
 
-**Security / reliability**
-- Input sanitization: all `market_id` inputs validated against `/^[A-Z0-9]{2,10}-[A-Z0-9]{2,10}$/i` before URL interpolation — rejects path traversal and malformed IDs with structured errors
-- 429 retry: `BudaClient` retries once on rate-limit responses, honoring the `Retry-After` header (seconds, per RFC 7231; defaults to 1s if absent). Double-429 throws `BudaApiError` with `retryAfterMs`.
+**New tool: `get_market_summary`**
+One-call summary: last price, bid/ask, spread %, 24h volume, price change 24h/7d, and
+`liquidity_rating` ("high" < 0.3%, "medium" 0.3–1%, "low" > 1%). Best first tool to call.
 
-**DX improvements**
-- `.env.example` added for easy credential setup
-- `get_price_history` limit raised from 100 to 1000 trades; UTC bucketing documented prominently
-- `npm run sync-version` syncs `server.json` from `package.json` automatically
+**New tool: `get_arbitrage_opportunities`**
+Detects cross-country price discrepancies for an asset across CLP/COP/PEN markets,
+normalized to USDC. Includes pairwise discrepancy %, sorted by size.
+Fees note: 0.8% taker fee per leg (~1.6% round-trip) included in every response.
 
-**Test suite**
-- 23 new unit tests (no live API needed): HMAC signing exactness, cache deduplication, confirmation_token guards, input sanitization, 429 retry behavior
-- Integration tests skip gracefully when Buda API is unreachable (CI-friendly)
-- New scripts: `npm run test:unit`, `npm run test:integration`
+**New MCP Resource: `buda://summary/{market}`**
+Same data as get_market_summary, served as an MCP Resource in both stdio and HTTP transports.
+
+**Improved tool descriptions**
+All 12 tool descriptions rewritten: specific return types, units, and concrete example questions.
+
+**Test suite: 35 unit tests (was 23)**
+New sections: flattenAmount type correctness, arbitrage discrepancy calculation with mock data,
+liquidity_rating boundary tests.
 
 ```bash
 npx @guiie/buda-mcp
@@ -117,19 +124,19 @@ Verify: https://smithery.ai/server/@guiie/buda-mcp
 **Email/message template:**
 
 ```
-Subject: [Update] buda-mcp v1.2.0 — input sanitization, 429 retry, 23 unit tests
+Subject: [Update] buda-mcp v1.3.0 — flat schemas, arbitrage tool, market summary tool
 
 Hi mcp.so team,
 
-I've released v1.2.0 of buda-mcp (@guiie/buda-mcp on npm).
+I've released v1.3.0 of buda-mcp (@guiie/buda-mcp on npm).
 
 Key changes:
-- Input sanitization: all market IDs validated against a strict regex before URL use
-- 429 rate-limit retry: honors Retry-After header (seconds, RFC 7231), defaults to 1s
-- get_price_history: limit raised to 1000 trades for deeper history
-- 23 unit tests added (no live API required): HMAC, cache dedup, confirmation guards, sanitization, retry
-- Single version source-of-truth (package.json → all files via src/version.ts)
-- .env.example added for easy credential setup
+- All tools now return flat typed objects: floats + _currency fields instead of [amount, currency] arrays
+- New tool: get_market_summary — one-call overview with liquidity_rating (high/medium/low)
+- New tool: get_arbitrage_opportunities — cross-country BTC/ETH/etc price discrepancy detection (USDC-normalized)
+- New MCP Resource: buda://summary/{market}
+- All tool descriptions rewritten with concrete example questions and units
+- 35 unit tests (12 new)
 
 Links:
 - npm: https://www.npmjs.com/package/@guiie/buda-mcp
@@ -148,22 +155,23 @@ Thank you!
 **Message template:**
 
 ```
-Subject: [Update] buda-mcp v1.2.0
+Subject: [Update] buda-mcp v1.3.0
 
 Hi Glama team,
 
-buda-mcp has been updated to v1.2.0.
+buda-mcp has been updated to v1.3.0.
 
 Package: @guiie/buda-mcp (npm)
 Registry: io.github.gtorreal/buda-mcp (MCP Registry)
-Version: 1.2.0
+Version: 1.3.0
 
 Changes:
-- Input validation on all market_id inputs (structured isError: true on failure)
-- 429 retry with Retry-After support (RFC 7231 seconds; default 1s)
-- get_price_history limit raised to 1000 trades; UTC bucket timestamps documented
-- 23 unit tests: HMAC signing, cache deduplication, confirmation guards, sanitization, retry
-- Single version source (package.json); .env.example added
+- Flat response schemas: all monetary amounts now floats with _currency fields (LLM-friendly)
+- New tool: get_market_summary (one-call overview, liquidity_rating)
+- New tool: get_arbitrage_opportunities (cross-country USDC-normalized price discrepancy)
+- New MCP Resource: buda://summary/{market}
+- Rewritten descriptions with examples and units for all 12 tools
+- 35 unit tests
 
 Quick start:
   npx @guiie/buda-mcp
@@ -178,12 +186,13 @@ Thank you!
 
 ## 8. Post-publish verification
 
-- [ ] `npx @guiie/buda-mcp@1.2.0` starts successfully
-- [ ] `npm info @guiie/buda-mcp version` returns `1.2.0`
-- [ ] GitHub release tag `v1.2.0` is visible
-- [ ] MCP Registry entry reflects v1.2.0
-- [ ] Smithery server card lists 8 public tools (with updated get_price_history description)
-- [ ] `GET /health` returns `"version":"1.2.0"` on Railway deployment
-- [ ] `GET /.well-known/mcp/server-card.json` returns tools with updated schemas (no hardcoded JSON)
+- [ ] `npx @guiie/buda-mcp@1.3.0` starts successfully
+- [ ] `npm info @guiie/buda-mcp version` returns `1.3.0`
+- [ ] GitHub release tag `v1.3.0` is visible
+- [ ] MCP Registry entry reflects v1.3.0
+- [ ] Smithery server card lists 10 public tools (including get_market_summary, get_arbitrage_opportunities)
+- [ ] `GET /health` returns `"version":"1.3.0"` on Railway deployment
+- [ ] `GET /.well-known/mcp/server-card.json` returns 3 resources (including buda://summary/{market})
+- [ ] get_ticker response has `last_price: <number>` not `last_price: ["...", "CLP"]`
 - [ ] mcp.so listing updated
 - [ ] Glama.ai listing updated

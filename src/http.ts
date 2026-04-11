@@ -13,10 +13,13 @@ import * as volume from "./tools/volume.js";
 import * as spread from "./tools/spread.js";
 import * as compareMarkets from "./tools/compare_markets.js";
 import * as priceHistory from "./tools/price_history.js";
+import * as arbitrage from "./tools/arbitrage.js";
+import * as marketSummary from "./tools/market_summary.js";
 import * as balances from "./tools/balances.js";
 import * as orders from "./tools/orders.js";
 import * as placeOrder from "./tools/place_order.js";
 import * as cancelOrder from "./tools/cancel_order.js";
+import { handleMarketSummary } from "./tools/market_summary.js";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 
@@ -39,6 +42,8 @@ const PUBLIC_TOOL_SCHEMAS = [
   spread.toolSchema,
   compareMarkets.toolSchema,
   priceHistory.toolSchema,
+  arbitrage.toolSchema,
+  marketSummary.toolSchema,
 ];
 
 const AUTH_TOOL_SCHEMAS = [
@@ -62,6 +67,8 @@ function createServer(): McpServer {
   spread.register(server, client, reqCache);
   compareMarkets.register(server, client, reqCache);
   priceHistory.register(server, client, reqCache);
+  arbitrage.register(server, client, reqCache);
+  marketSummary.register(server, client, reqCache);
 
   if (authEnabled) {
     balances.register(server, client);
@@ -114,6 +121,25 @@ function createServer(): McpServer {
     },
   );
 
+  server.resource(
+    "buda-summary",
+    new ResourceTemplate("buda://summary/{market}", { list: undefined }),
+    async (uri, params) => {
+      const marketId = (params.market as string).toUpperCase();
+      const result = await handleMarketSummary({ market_id: marketId }, client, reqCache);
+      const text = result.content[0].text;
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "application/json",
+            text,
+          },
+        ],
+      };
+    },
+  );
+
   return server;
 }
 
@@ -140,6 +166,7 @@ app.get("/.well-known/mcp/server-card.json", (_req, res) => {
     resources: [
       { uri: "buda://markets", name: "All Buda.com markets", mimeType: "application/json" },
       { uri: "buda://ticker/{market}", name: "Ticker for a specific market", mimeType: "application/json" },
+      { uri: "buda://summary/{market}", name: "Full market summary with liquidity rating", mimeType: "application/json" },
     ],
     prompts: [],
   });

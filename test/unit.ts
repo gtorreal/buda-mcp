@@ -9,6 +9,9 @@ import { MemoryCache } from "../src/cache.js";
 import { validateMarketId } from "../src/validation.js";
 import { handlePlaceOrder } from "../src/tools/place_order.js";
 import { handleCancelOrder } from "../src/tools/cancel_order.js";
+import { flattenAmount, getLiquidityRating } from "../src/utils.js";
+import { handleArbitrageOpportunities } from "../src/tools/arbitrage.js";
+import { handleMarketSummary } from "../src/tools/market_summary.js";
 
 // ----------------------------------------------------------------
 // Minimal test harness
@@ -398,6 +401,257 @@ await test("defaults to 1000ms when Retry-After header is absent", async () => {
   } finally {
     globalThis.fetch = savedFetch;
     globalThis.setTimeout = savedSetTimeout;
+  }
+});
+
+// ----------------------------------------------------------------
+// f. Numeric flattening — flattenAmount returns typed float, not string
+// ----------------------------------------------------------------
+
+section("f. Numeric flattening — flattenAmount");
+
+await test("flattenAmount returns a number value, not a string", () => {
+  const result = flattenAmount(["65000000", "CLP"]);
+  assert(typeof result.value === "number", "value should be a number");
+  assertEqual(result.value, 65000000, "value should equal 65000000");
+  assertEqual(result.currency, "CLP", "currency should equal CLP");
+});
+
+await test("flattenAmount handles decimal strings correctly", () => {
+  const result = flattenAmount(["4.99123456", "BTC"]);
+  assert(typeof result.value === "number", "value should be a number");
+  assertEqual(result.value, 4.99123456, "value should equal 4.99123456");
+  assertEqual(result.currency, "BTC", "currency should equal BTC");
+});
+
+await test("flattenAmount on zero amount", () => {
+  const result = flattenAmount(["0.0", "CLP"]);
+  assertEqual(result.value, 0, "zero should parse to 0");
+});
+
+await test("flattenAmount value is not a string array", () => {
+  const result = flattenAmount(["65000000", "CLP"]);
+  assert(!Array.isArray(result), "result should not be an array");
+  assert(typeof result.value !== "string", "value should not be a string");
+});
+
+// ----------------------------------------------------------------
+// g. get_arbitrage_opportunities — discrepancy calculation
+// ----------------------------------------------------------------
+
+section("g. get_arbitrage_opportunities — discrepancy calculation");
+
+await test("correctly computes USDC-normalized price discrepancy between CLP and PEN markets", async () => {
+  const savedFetch = globalThis.fetch;
+
+  // BTC-CLP: 65000000 CLP, USDC-CLP: 1000 CLP → BTC in USDC = 65000
+  // BTC-PEN: 250000000 PEN, USDC-PEN: 3700 PEN → BTC in USDC ≈ 67567.567...
+  // Discrepancy: (67567.567 - 65000) / 65000 * 100 ≈ 3.95%
+  const mockTickers = {
+    tickers: [
+      { market_id: "BTC-CLP", last_price: ["65000000", "CLP"], max_bid: ["64900000", "CLP"], min_ask: ["65100000", "CLP"], volume: ["4.99", "BTC"], price_variation_24h: "0.01", price_variation_7d: "0.05" },
+      { market_id: "BTC-PEN", last_price: ["250000000", "PEN"], max_bid: ["249500000", "PEN"], min_ask: ["250500000", "PEN"], volume: ["1.5", "BTC"], price_variation_24h: "0.012", price_variation_7d: "0.04" },
+      { market_id: "USDC-CLP", last_price: ["1000", "CLP"], max_bid: ["999", "CLP"], min_ask: ["1001", "CLP"], volume: ["100", "USDC"], price_variation_24h: "0.001", price_variation_7d: "0.002" },
+      { market_id: "USDC-PEN", last_price: ["3700", "PEN"], max_bid: ["3695", "PEN"], min_ask: ["3705", "PEN"], volume: ["50", "USDC"], price_variation_24h: "0.001", price_variation_7d: "0.002" },
+    ],
+  };
+
+  globalThis.fetch = async (): Promise<Response> => {
+    return new Response(JSON.stringify(mockTickers), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const cache = new MemoryCache();
+    const result = await handleArbitrageOpportunities(
+      { base_currency: "BTC", threshold_pct: 0.5 },
+      client,
+      cache,
+    );
+
+    assert(!result.isError, "should not return an error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      opportunities: Array<{ market_a: string; market_b: string; discrepancy_pct: number }>;
+      markets_analyzed: Array<{ market_id: string; price_usdc: number }>;
+    };
+
+    assertEqual(parsed.markets_analyzed.length, 2, "should have 2 markets analyzed");
+    assertEqual(parsed.opportunities.length, 1, "should have exactly 1 opportunity");
+
+    const opp = parsed.opportunities[0];
+    const expectedDiscrepancy = ((67567.5676 - 65000) / 65000) * 100;
+    assert(
+      Math.abs(opp.discrepancy_pct - expectedDiscrepancy) < 0.01,
+      `discrepancy_pct should be ≈${expectedDiscrepancy.toFixed(2)}%, got ${opp.discrepancy_pct}`,
+    );
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("threshold filtering excludes opportunities below threshold", async () => {
+  const savedFetch = globalThis.fetch;
+
+  // ~3.95% discrepancy between CLP and PEN — threshold 5% should exclude it
+  const mockTickers = {
+    tickers: [
+      { market_id: "BTC-CLP", last_price: ["65000000", "CLP"], max_bid: ["64900000", "CLP"], min_ask: ["65100000", "CLP"], volume: ["4.99", "BTC"], price_variation_24h: "0.01", price_variation_7d: "0.05" },
+      { market_id: "BTC-PEN", last_price: ["250000000", "PEN"], max_bid: ["249500000", "PEN"], min_ask: ["250500000", "PEN"], volume: ["1.5", "BTC"], price_variation_24h: "0.012", price_variation_7d: "0.04" },
+      { market_id: "USDC-CLP", last_price: ["1000", "CLP"], max_bid: ["999", "CLP"], min_ask: ["1001", "CLP"], volume: ["100", "USDC"], price_variation_24h: "0.001", price_variation_7d: "0.002" },
+      { market_id: "USDC-PEN", last_price: ["3700", "PEN"], max_bid: ["3695", "PEN"], min_ask: ["3705", "PEN"], volume: ["50", "USDC"], price_variation_24h: "0.001", price_variation_7d: "0.002" },
+    ],
+  };
+
+  globalThis.fetch = async (): Promise<Response> => {
+    return new Response(JSON.stringify(mockTickers), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const cache = new MemoryCache();
+    const result = await handleArbitrageOpportunities(
+      { base_currency: "BTC", threshold_pct: 5.0 },
+      client,
+      cache,
+    );
+
+    assert(!result.isError, "should not return an error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      opportunities: Array<unknown>;
+    };
+    assertEqual(parsed.opportunities.length, 0, "threshold 5% should exclude the ~3.95% discrepancy");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("returns error when fewer than 2 markets are found", async () => {
+  const savedFetch = globalThis.fetch;
+
+  // Only CLP market available, no PEN or COP
+  const mockTickers = {
+    tickers: [
+      { market_id: "BTC-CLP", last_price: ["65000000", "CLP"], max_bid: ["64900000", "CLP"], min_ask: ["65100000", "CLP"], volume: ["4.99", "BTC"], price_variation_24h: "0.01", price_variation_7d: "0.05" },
+      { market_id: "USDC-CLP", last_price: ["1000", "CLP"], max_bid: ["999", "CLP"], min_ask: ["1001", "CLP"], volume: ["100", "USDC"], price_variation_24h: "0.001", price_variation_7d: "0.002" },
+    ],
+  };
+
+  globalThis.fetch = async (): Promise<Response> => {
+    return new Response(JSON.stringify(mockTickers), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  };
+
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const cache = new MemoryCache();
+    const result = await handleArbitrageOpportunities(
+      { base_currency: "BTC", threshold_pct: 0.5 },
+      client,
+      cache,
+    );
+    assert(result.isError === true, "should return isError when not enough markets");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// h. get_market_summary — liquidity_rating thresholds
+// ----------------------------------------------------------------
+
+section("h. get_market_summary — liquidity_rating thresholds");
+
+await test("getLiquidityRating: spread < 0.3% → 'high'", () => {
+  assertEqual(getLiquidityRating(0), "high", "0% spread should be high");
+  assertEqual(getLiquidityRating(0.1), "high", "0.1% spread should be high");
+  assertEqual(getLiquidityRating(0.29), "high", "0.29% spread should be high");
+});
+
+await test("getLiquidityRating: spread at 0.3% boundary → 'medium'", () => {
+  assertEqual(getLiquidityRating(0.3), "medium", "exactly 0.3% spread should be medium");
+});
+
+await test("getLiquidityRating: spread 0.3–1% → 'medium'", () => {
+  assertEqual(getLiquidityRating(0.5), "medium", "0.5% spread should be medium");
+  assertEqual(getLiquidityRating(1.0), "medium", "exactly 1.0% spread should be medium");
+});
+
+await test("getLiquidityRating: spread > 1% → 'low'", () => {
+  assertEqual(getLiquidityRating(1.01), "low", "1.01% spread should be low");
+  assertEqual(getLiquidityRating(5.0), "low", "5% spread should be low");
+});
+
+await test("handleMarketSummary returns correct liquidity_rating from mocked API", async () => {
+  const savedFetch = globalThis.fetch;
+  let callCount = 0;
+
+  // Ticker: bid 64870, ask 65000 → spread = 130 / 65000 * 100 = 0.2% → "high"
+  const mockTicker = {
+    ticker: {
+      market_id: "BTC-CLP",
+      last_price: ["65000", "CLP"],
+      max_bid: ["64870", "CLP"],
+      min_ask: ["65000", "CLP"],
+      volume: ["4.99", "BTC"],
+      price_variation_24h: "0.012",
+      price_variation_7d: "0.05",
+    },
+  };
+  const mockVolume = {
+    volume: {
+      market_id: "BTC-CLP",
+      ask_volume_24h: ["10.5", "BTC"],
+      ask_volume_7d: ["72.1", "BTC"],
+      bid_volume_24h: ["9.8", "BTC"],
+      bid_volume_7d: ["68.3", "BTC"],
+    },
+  };
+
+  globalThis.fetch = async (url: string | URL): Promise<Response> => {
+    callCount++;
+    const urlStr = url.toString();
+    if (urlStr.includes("/volume")) {
+      return new Response(JSON.stringify(mockVolume), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response(JSON.stringify(mockTicker), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const cache = new MemoryCache();
+    const result = await handleMarketSummary({ market_id: "BTC-CLP" }, client, cache);
+
+    assert(!result.isError, "should not return an error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      market_id: string;
+      last_price: number;
+      last_price_currency: string;
+      bid: number;
+      ask: number;
+      spread_pct: number;
+      volume_24h: number;
+      liquidity_rating: string;
+    };
+
+    assertEqual(parsed.market_id, "BTC-CLP", "market_id should match");
+    assertEqual(parsed.last_price, 65000, "last_price should be a number");
+    assert(typeof parsed.last_price === "number", "last_price should be a number type");
+    assertEqual(parsed.last_price_currency, "CLP", "currency should be CLP");
+    assertEqual(parsed.bid, 64870, "bid should be a float");
+    assertEqual(parsed.ask, 65000, "ask should be a float");
+    // spread = (65000 - 64870) / 65000 * 100 = 130/65000*100 = 0.2%
+    assertEqual(parsed.liquidity_rating, "high", "spread 0.2% should yield 'high' liquidity");
+    assertEqual(parsed.volume_24h, 10.5, "volume_24h should be a float");
+  } finally {
+    globalThis.fetch = savedFetch;
   }
 });
 

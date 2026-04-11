@@ -8,8 +8,10 @@ import type { MarketsResponse, MarketResponse } from "../types.js";
 export const toolSchema = {
   name: "get_markets",
   description:
-    "List all available trading pairs on Buda.com, or get details for a specific market. " +
-    "Returns base/quote currencies, fees, and minimum order sizes.",
+    "Lists all available trading pairs on Buda.com, or returns details for a specific market " +
+    "(base/quote currencies, taker/maker fees as decimals, minimum order size in base currency, " +
+    "and fee discount tiers). Omit market_id to get all ~26 markets at once. " +
+    "Example: 'What is the taker fee and minimum order size for BTC-CLP?'",
   inputSchema: {
     type: "object" as const,
     properties: {

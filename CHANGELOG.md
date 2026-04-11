@@ -7,6 +7,43 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.3.0] – 2026-04-11
+
+### Added
+
+- **`src/utils.ts`** — shared `flattenAmount(amount: Amount)` helper (returns `{ value: number, currency: string }`) and `getLiquidityRating(spreadPct: number)` helper (`"high"` / `"medium"` / `"low"`) used across multiple tools and unit-testable in isolation.
+
+- **`get_arbitrage_opportunities`** (`src/tools/arbitrage.ts`) — new public tool that detects cross-country price discrepancies for a given asset across Buda's CLP, COP, and PEN markets, normalised to USDC. Inputs: `base_currency` (e.g. `"BTC"`) and optional `threshold_pct` (default `0.5`). Algorithm: fetches all tickers, converts each local price to USDC via the current USDC-CLP / USDC-COP / USDC-PEN rates, computes all pairwise discrepancy percentages, filters by threshold, and sorts descending. Output includes a `fees_note` reminding callers that Buda's 0.8% taker fee per leg (~1.6% round-trip) must be deducted. Exports `handleArbitrageOpportunities` for unit testing.
+
+- **`get_market_summary`** (`src/tools/market_summary.ts`) — new public tool that returns a single unified object with everything relevant about a market: `last_price`, `last_price_currency`, `bid`, `ask`, `spread_pct`, `volume_24h`, `volume_24h_currency`, `price_change_24h`, `price_change_7d`, and `liquidity_rating` (`"high"` when spread < 0.3%, `"medium"` when 0.3–1%, `"low"` when > 1%). Makes 2 API calls in parallel (ticker + volume); spread is derived from the ticker without a third call. Exports `handleMarketSummary` for unit testing.
+
+- **`buda://summary/{market}`** MCP Resource — registered in both stdio (`src/index.ts`) and HTTP (`src/http.ts`) transports. Returns the same JSON as `get_market_summary`. Added to the server-card `resources` array.
+
+- **Unit tests (12 new, 35 total)** in `test/unit.ts`:
+  - **f. Numeric flattening** (4 tests): `flattenAmount` returns a `number`, not a string; handles decimals and zero correctly; result is not an array.
+  - **g. `get_arbitrage_opportunities`** (3 tests): mocked tickers verify correct USDC-normalised discrepancy calculation (~3.95% for BTC CLP vs PEN at the given rates); threshold 5% correctly excludes the opportunity; returns `isError` when fewer than 2 markets have USDC rates.
+  - **h. `get_market_summary` / `getLiquidityRating`** (5 tests): boundary tests for all three liquidity tiers; end-to-end mock verifies `liquidity_rating: "high"` at 0.2% spread and that `last_price` is a number type.
+
+### Changed
+
+- **Flat response schemas across all tools** — every tool that previously returned Buda `[amount_string, currency_string]` tuples now returns flat, typed fields. All numeric strings are cast to `parseFloat`; the currency is separated into a `_currency`-suffixed sibling field. Specific changes per tool:
+  - **`get_ticker`** — `last_price`, `min_ask`, `max_bid`, `volume` flattened; `price_variation_24h` / `price_variation_7d` cast to float.
+  - **`get_market_volume`** — all four `*_volume_*` Amount fields flattened with `_currency` suffix.
+  - **`get_orderbook`** — bids and asks converted from `[price, amount]` tuples to `{ price: float, amount: float }` objects.
+  - **`get_trades`** — entries converted from `[timestamp_ms, amount, price, direction]` tuples to `{ timestamp_ms: int, amount: float, price: float, direction: string }` objects.
+  - **`get_spread`** — `best_bid`, `best_ask`, `spread_absolute`, `last_price` → floats; `spread_percentage` → float (the "%" suffix is dropped); `currency` renamed to `price_currency`.
+  - **`compare_markets`** — per-market `last_price` + `last_price_currency` (was `last_price` + `currency`); `best_bid`, `best_ask`, `volume_24h` → floats; `price_change_*` → floats in percent (was strings like `"1.23%"`).
+  - **`get_price_history`** — OHLCV candle fields `open`, `high`, `low`, `close`, `volume` → floats (were strings).
+  - **`get_balances`** — all four Amount fields per balance entry (`amount`, `available_amount`, `frozen_amount`, `pending_withdraw_amount`) flattened with `_currency` suffix.
+  - **`get_orders`** — all Amount fields (`limit`, `amount`, `original_amount`, `traded_amount`, `total_exchanged`, `paid_fee`) flattened; `limit` renamed to `limit_price` / `limit_price_currency`.
+
+- **Improved tool descriptions** — all 12 tool descriptions (10 public + 2 auth) rewritten to be specific about return shape, include units, and give a concrete example question an LLM might ask.
+
+- **`package.json`** version bumped to `1.3.0`.
+- **`marketplace/`** and **`PUBLISH_CHECKLIST.md`** updated to reflect v1.3.0 changes.
+
+---
+
 ## [1.2.0] – 2026-04-11
 
 ### Added

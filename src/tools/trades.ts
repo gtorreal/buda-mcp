@@ -8,8 +8,10 @@ import type { TradesResponse } from "../types.js";
 export const toolSchema = {
   name: "get_trades",
   description:
-    "Get recent trade history for a Buda.com market. Each entry contains " +
-    "[timestamp_ms, amount, price, direction]. Direction is 'buy' or 'sell'.",
+    "Returns recent trade history for a Buda.com market as typed objects. Each entry has " +
+    "timestamp_ms (integer), amount (float, base currency), price (float, quote currency), " +
+    "and direction ('buy' or 'sell'). " +
+    "Example: 'What was the last executed price for BTC-CLP and was it a buy or sell?'",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -73,8 +75,21 @@ export function register(server: McpServer, client: BudaClient, _cache: MemoryCa
           Object.keys(params).length > 0 ? params : undefined,
         );
 
+        const t = data.trades;
+        const result = {
+          timestamp: t.timestamp,
+          last_timestamp: t.last_timestamp,
+          market_id: t.market_id,
+          entries: t.entries.map(([tsMs, amount, price, direction]) => ({
+            timestamp_ms: parseInt(tsMs, 10),
+            amount: parseFloat(amount),
+            price: parseFloat(price),
+            direction,
+          })),
+        };
+
         return {
-          content: [{ type: "text", text: JSON.stringify(data.trades, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         };
       } catch (err) {
         const msg =

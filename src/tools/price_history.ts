@@ -13,11 +13,11 @@ const PERIOD_MS: Record<string, number> = {
 
 interface OhlcvCandle {
   time: string;
-  open: string;
-  high: string;
-  low: string;
-  close: string;
-  volume: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
   trade_count: number;
 }
 
@@ -26,9 +26,9 @@ export const toolSchema = {
   description:
     "IMPORTANT: Candles are aggregated client-side from raw trades (Buda has no native candlestick " +
     "endpoint) — fetching more trades via the 'limit' parameter gives deeper history but slower " +
-    "responses. Returns OHLCV (open/high/low/close/volume) price history for a Buda.com market. " +
-    "Candle timestamps are UTC bucket boundaries (e.g. '2026-04-10T12:00:00.000Z' for 1h). " +
-    "Supports 1h, 4h, and 1d candle periods.",
+    "responses. Returns OHLCV candles (open/high/low/close as floats in quote currency; volume as float " +
+    "in base currency) for periods 1h, 4h, or 1d. Candle timestamps are UTC bucket boundaries. " +
+    "Example: 'Show me the hourly BTC-CLP price chart for the past 24 hours.'",
   inputSchema: {
     type: "object" as const,
     properties: {
@@ -122,19 +122,19 @@ export function register(server: McpServer, client: BudaClient, _cache: MemoryCa
           if (!buckets.has(bucketStart)) {
             buckets.set(bucketStart, {
               time: new Date(bucketStart).toISOString(),
-              open: price,
-              high: price,
-              low: price,
-              close: price,
-              volume: amount,
+              open: p,
+              high: p,
+              low: p,
+              close: p,
+              volume: v,
               trade_count: 1,
             });
           } else {
             const candle = buckets.get(bucketStart)!;
-            if (p > parseFloat(candle.high)) candle.high = price;
-            if (p < parseFloat(candle.low)) candle.low = price;
-            candle.close = price;
-            candle.volume = (parseFloat(candle.volume) + v).toFixed(8);
+            if (p > candle.high) candle.high = p;
+            if (p < candle.low) candle.low = p;
+            candle.close = p;
+            candle.volume = parseFloat((candle.volume + v).toFixed(8));
             candle.trade_count++;
           }
         }
