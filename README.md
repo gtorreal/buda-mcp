@@ -436,11 +436,14 @@ Returns the current active receive address for a currency.
 ---
 
 #### `create_receive_address`
-Generate a new receive address for a crypto currency.
+Generate a new receive address for a crypto currency. Not idempotent — each call creates a distinct address.
+
+**Requires `confirmation_token="CONFIRM"`**.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `currency` | string | Yes | Crypto currency code (e.g. `BTC`, `ETH`). |
+| `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to generate a new address. |
 
 ---
 
@@ -464,13 +467,16 @@ Returns a single remittance by ID.
 ---
 
 #### `quote_remittance`
-Request a remittance quote for a given recipient and amount.
+Request a remittance quote for a given recipient and amount. Not idempotent — each call creates a new remittance record.
+
+**Requires `confirmation_token="CONFIRM"`**.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `currency` | string | Yes | Currency code. |
 | `amount` | number | Yes | Amount to remit. |
 | `recipient_id` | number | Yes | Remittance recipient ID. |
+| `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to create the quote. |
 
 ---
 

@@ -1251,6 +1251,11 @@ components:
               type: number
             sma_50:
               type: number
+              nullable: true
+              description: "Null when fewer than 50 candles are available; check sma_50_warning."
+            sma_50_warning:
+              type: string
+              description: "Present only when sma_50 is null. Explains why SMA-50 could not be computed."
         signals:
           type: object
           properties:

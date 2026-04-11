@@ -470,16 +470,20 @@
     },
     {
       "name": "create_receive_address",
-      "description": "Generate a new crypto deposit (receive) address for a currency. Not idempotent — each call creates a new address. Crypto only. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "description": "Generate a new crypto deposit (receive) address for a currency. Not idempotent — each call creates a new address. Crypto only. IMPORTANT: Requires confirmation_token='CONFIRM'. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
       "parameters": {
         "type": "OBJECT",
         "properties": {
           "currency": {
             "type": "STRING",
             "description": "Crypto currency code (e.g. 'BTC', 'ETH'). Case-insensitive."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Must equal exactly 'CONFIRM' (case-sensitive) to generate a new address."
           }
         },
-        "required": ["currency"]
+        "required": ["currency", "confirmation_token"]
       }
     },
     {
@@ -566,7 +570,7 @@
     },
     {
       "name": "quote_remittance",
-      "description": "Create a time-limited remittance quote using the live FX rate. Does not transfer funds. Follow with accept_remittance_quote to execute. Not idempotent. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
+      "description": "Create a time-limited remittance quote using the live FX rate. Does not transfer funds. Follow with accept_remittance_quote to execute. Not idempotent — each call creates a new remittance record. IMPORTANT: Requires confirmation_token='CONFIRM'. Requires BUDA_API_KEY and BUDA_API_SECRET. Auth-gated.",
       "parameters": {
         "type": "OBJECT",
         "properties": {
@@ -581,9 +585,13 @@
           "recipient_id": {
             "type": "INTEGER",
             "description": "Saved remittance recipient ID."
+          },
+          "confirmation_token": {
+            "type": "STRING",
+            "description": "Must equal exactly 'CONFIRM' (case-sensitive) to create the quote."
           }
         },
-        "required": ["currency", "amount", "recipient_id"]
+        "required": ["currency", "amount", "recipient_id", "confirmation_token"]
       }
     },
     {

@@ -11,6 +11,21 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Security: path traversal in MCP resource handlers** — `buda://ticker/{market}` and `buda://summary/{market}` resource handlers now call `validateMarketId` before interpolating the parameter into the API URL, preventing path traversal to unintended Buda API endpoints.
+- **Security: bearer token auth for HTTP server** — `src/http.ts` now supports an optional `MCP_AUTH_TOKEN` environment variable. When set, all requests to `/mcp` must include `Authorization: Bearer <token>`. Health check and server-card endpoints remain public.
+- **Bug: NaN propagation in `flattenAmount`** — now throws an explicit error on invalid amount strings instead of silently returning `NaN`.
+- **Bug: nonce collision on concurrent HTTP requests** — `BudaClient` now uses a per-instance counter to guarantee unique nonces even when multiple requests land within the same millisecond.
+- **Bug: `version.ts` crash on missing `package.json`** — `readFileSync` is now wrapped in `try/catch` with fallback `"unknown"` to prevent process crash in deployments without `package.json`.
+- **Bug: incorrect PUT payload in `cancel_order` and `dead_mans_switch`** — body is now `{ order: { state: "canceling" } }` per Buda API Rails convention, matching `cancel_order_by_client_id` and `remittances`.
+- **Bug: `ttl_seconds` bounds not enforced in `handleScheduleCancelAll`** — added explicit validation (10–300, integer) in the handler itself, independent of Zod schema; a negative TTL would previously have fired the timer immediately.
+- **Bug: `gtd_timestamp` not validated in `place_order`** — now checks that the value is a valid ISO 8601 datetime and is in the future before sending it to the API.
+- **Bug: `sma_50` returned incorrect partial average** — `get_technical_indicators` now returns `null` for `sma_50` (with an `sma_50_warning` field) when fewer than 50 candles are available, instead of silently computing an average over fewer points.
+- **Security: `quote_remittance` now requires `confirmation_token="CONFIRM"`** — this tool is non-idempotent (each call creates a new remittance record); the confirmation guard prevents accidental or repeated invocations.
+- **Security: `create_receive_address` now requires `confirmation_token="CONFIRM"`** — this tool is non-idempotent (each call generates a new blockchain address); the confirmation guard prevents accidental repeated calls.
+- **Marketplace docs updated** — `gemini-tools.json`, `claude-listing.md`, `openapi.yaml`, and `README.md` updated to reflect the new `confirmation_token` requirement for `create_receive_address` and `quote_remittance`, and the nullable `sma_50` field.
+
+### Fixed
+
 - **Marketplace documentation gap** — `claude-listing.md`, `gemini-tools.json`, and `openapi.yaml` were missing 18 tools that were already implemented and registered in the server. All three files now reflect the full set of 46 tools:
   - Public tools added: `get_available_banks`, `get_real_quotation`
   - Auth tools added: `get_account_info`, `get_balance`, `get_order`, `get_order_by_client_id`, `get_network_fees`, `get_deposit_history`, `get_withdrawal_history`, `create_receive_address`, `list_receive_addresses`, `get_receive_address`, `list_remittance_recipients`, `get_remittance_recipient`, `list_remittances`, `quote_remittance`, `accept_remittance_quote`, `get_remittance`

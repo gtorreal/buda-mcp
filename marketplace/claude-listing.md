@@ -161,8 +161,8 @@ Create a Lightning receive invoice. No confirmation required. Returns `{ id, pay
 **Parameters:** `amount_satoshis`, `description` *(optional, max 140 chars)*, `expiry_seconds` *(optional, 60–86400)*.
 
 ### `create_receive_address`
-Generate a new crypto deposit address for a currency. Not idempotent — each call creates a new address. Crypto only.  
-**Parameters:** `currency` *(required)* — e.g. `BTC`, `ETH`.
+Generate a new crypto deposit address for a currency. Not idempotent — each call creates a new address. Crypto only. Requires `confirmation_token="CONFIRM"`.  
+**Parameters:** `currency` *(required)* — e.g. `BTC`, `ETH`. `confirmation_token` *(required)*.
 
 ### `list_receive_addresses`
 List all receive (deposit) addresses for a currency.  
@@ -185,8 +185,8 @@ List past fiat remittance transfers with pagination. Amounts are floats with `_c
 **Parameters:** `per` *(optional)*, `page` *(optional)*.
 
 ### `quote_remittance`
-Create a time-limited remittance quote (does not transfer funds). Follow with `accept_remittance_quote` to execute. Not idempotent.  
-**Parameters:** `currency` *(required)*, `amount` *(required)*, `recipient_id` *(required)*.
+Create a time-limited remittance quote (does not transfer funds). Follow with `accept_remittance_quote` to execute. Not idempotent — each call creates a new remittance record. Requires `confirmation_token="CONFIRM"`.  
+**Parameters:** `currency` *(required)*, `amount` *(required)*, `recipient_id` *(required)*, `confirmation_token` *(required)*.
 
 ### `accept_remittance_quote`
 Accept and execute a remittance quote. **Irreversible.** Requires `confirmation_token="CONFIRM"`.  
