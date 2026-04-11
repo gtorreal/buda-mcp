@@ -14,7 +14,7 @@ info:
     stdio server. Deploy locally with mcp-proxy:
       mcp-proxy --port 8000 -- npx -y @guiie/buda-mcp
     Or point `servers[0].url` at your hosted instance.
-  version: 1.4.0
+  version: 1.4.1
   contact:
     url: https://github.com/gtorreal/buda-mcp
 
@@ -347,6 +347,189 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ArbitrageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /simulate_order:
+    get:
+      operationId: simulateOrder
+      summary: Simulate a buy or sell order without placing it
+      description: |
+        Simulates a buy or sell order using live ticker data — no order is ever placed.
+        Returns estimated fill price, fee amount, total cost, and slippage vs mid-price.
+        Omit 'price' for a market order simulation; supply 'price' for a limit order simulation.
+        All outputs include simulation: true.
+        Example: 'How much would it cost to buy 0.01 BTC on BTC-CLP right now?'
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP", "ETH-BTC"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC-CLP
+        - name: side
+          in: query
+          required: true
+          description: Order side — "buy" or "sell".
+          schema:
+            type: string
+            enum: [buy, sell]
+        - name: amount
+          in: query
+          required: true
+          description: Order size in base currency (e.g. BTC for BTC-CLP).
+          schema:
+            type: number
+            minimum: 0
+            example: 0.01
+        - name: price
+          in: query
+          required: false
+          description: Limit price in quote currency. Omit for a market order simulation.
+          schema:
+            type: number
+            minimum: 0
+            example: 80000000
+      responses:
+        "200":
+          description: Order simulation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulateOrderResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /calculate_position_size:
+    get:
+      operationId: calculatePositionSize
+      summary: Calculate position size from capital and risk parameters
+      description: |
+        Calculates position size based on capital, risk tolerance, entry price, and stop-loss.
+        Determines how many units to buy or sell so that a stop-loss hit costs exactly risk_pct% of capital.
+        Fully client-side — no API call is made.
+        Example: 'How many BTC can I buy with 1,000,000 CLP, risking 2%, entry 80,000,000 CLP, stop at 78,000,000 CLP?'
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP"). Used to derive base and quote currencies.
+          schema:
+            type: string
+            example: BTC-CLP
+        - name: capital
+          in: query
+          required: true
+          description: Total available capital in the quote currency (e.g. CLP for BTC-CLP).
+          schema:
+            type: number
+            minimum: 0
+            example: 1000000
+        - name: risk_pct
+          in: query
+          required: true
+          description: Percentage of capital to risk on this trade (0.1–10, e.g. 2 means 2%).
+          schema:
+            type: number
+            minimum: 0.1
+            maximum: 10
+            example: 2
+        - name: entry_price
+          in: query
+          required: true
+          description: Planned entry price in quote currency.
+          schema:
+            type: number
+            minimum: 0
+            example: 80000000
+        - name: stop_loss_price
+          in: query
+          required: true
+          description: Stop-loss price in quote currency. Must differ from entry_price.
+          schema:
+            type: number
+            minimum: 0
+            example: 78000000
+      responses:
+        "200":
+          description: Position sizing result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionSizeResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /get_market_sentiment:
+    get:
+      operationId: getMarketSentiment
+      summary: Composite sentiment score for a market
+      description: |
+        Computes a composite sentiment score (−100 to +100) based on 24h price variation (40%),
+        volume vs 7-day average (35%), and bid/ask spread vs baseline (25%).
+        Returns a score, a label (bearish/neutral/bullish), and a full component breakdown.
+        Example: 'Is the BTC-CLP market currently bullish or bearish?'
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP", "ETH-BTC"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC-CLP
+      responses:
+        "200":
+          description: Market sentiment result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketSentimentResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /get_technical_indicators:
+    get:
+      operationId: getTechnicalIndicators
+      summary: RSI, MACD, Bollinger Bands, SMA20, SMA50 from trade history
+      description: |
+        Computes RSI (14), MACD (12/26/9), Bollinger Bands (20, 2σ), SMA 20, and SMA 50
+        from Buda trade history — no external data or libraries required.
+        Uses at least 500 trades for reliable results (set limit=1000 for maximum depth).
+        Returns latest indicator values and signal interpretations (overbought/oversold, crossover, band position).
+        If fewer than 50 candles are available after aggregation, returns a structured warning instead.
+        Example: 'Is BTC-CLP RSI overbought on the 4-hour chart?'
+      parameters:
+        - name: market_id
+          in: query
+          required: true
+          description: Market identifier (e.g. "BTC-CLP", "ETH-BTC"). Case-insensitive.
+          schema:
+            type: string
+            example: BTC-CLP
+        - name: period
+          in: query
+          required: false
+          description: Candle period. One of "1h", "4h", "1d". Default is "1h".
+          schema:
+            type: string
+            enum: ["1h", "4h", "1d"]
+            default: "1h"
+        - name: limit
+          in: query
+          required: false
+          description: Number of raw trades to fetch (default 500, max 1000). More trades = more candles = more reliable indicators.
+          schema:
+            type: integer
+            minimum: 500
+            maximum: 1000
+      responses:
+        "200":
+          description: Technical indicators result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TechnicalIndicatorsResponse"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -746,6 +929,197 @@ components:
         fees_note:
           type: string
           example: "Buda taker fee is 0.8% per leg. A round-trip arbitrage costs approximately 1.6% in fees."
+
+    SimulateOrderResponse:
+      type: object
+      properties:
+        simulation:
+          type: boolean
+          example: true
+        market_id:
+          type: string
+          example: BTC-CLP
+        side:
+          type: string
+          enum: [buy, sell]
+        amount:
+          type: number
+          example: 0.01
+        order_type_assumed:
+          type: string
+          enum: [market, limit]
+        estimated_fill_price:
+          type: number
+          example: 80000000
+        price_currency:
+          type: string
+          example: CLP
+        fee_amount:
+          type: number
+          example: 6400
+        fee_currency:
+          type: string
+          example: CLP
+        fee_rate_pct:
+          type: number
+          example: 0.8
+        total_cost:
+          type: number
+          description: Total outlay for buys (gross + fee) or net proceeds for sells (gross − fee).
+          example: 806400
+        slippage_vs_mid_pct:
+          type: number
+          description: Percentage difference between estimated fill price and mid-price.
+          example: 0.0027
+        mid_price:
+          type: number
+          example: 79997840
+
+    PositionSizeResponse:
+      type: object
+      properties:
+        market_id:
+          type: string
+          example: BTC-CLP
+        side:
+          type: string
+          enum: [buy, sell]
+        units:
+          type: number
+          description: Number of base currency units to trade.
+          example: 0.01
+        base_currency:
+          type: string
+          example: BTC
+        capital_at_risk:
+          type: number
+          description: Amount of capital at risk (capital × risk_pct / 100) in quote currency.
+          example: 20000
+        position_value:
+          type: number
+          description: Total position value in quote currency (units × entry_price).
+          example: 800000
+        fee_impact:
+          type: number
+          description: Estimated entry fee at 0.8% taker rate in quote currency.
+          example: 6400
+        fee_currency:
+          type: string
+          example: CLP
+        risk_reward_note:
+          type: string
+          description: Human-readable summary of the trade setup.
+
+    MarketSentimentResponse:
+      type: object
+      properties:
+        market_id:
+          type: string
+          example: BTC-CLP
+        score:
+          type: number
+          description: Composite sentiment score from −100 (very bearish) to +100 (very bullish).
+          example: 23.5
+        label:
+          type: string
+          enum: [bearish, neutral, bullish]
+          example: bullish
+        component_breakdown:
+          type: object
+          properties:
+            price_variation_24h_pct:
+              type: number
+              example: 1.9
+            volume_ratio:
+              type: number
+              description: Today's volume vs 7-day daily average (1.0 = average).
+              example: 1.25
+            spread_pct:
+              type: number
+              example: 0.005
+            spread_baseline_pct:
+              type: number
+              example: 1.0
+            price_score:
+              type: number
+            volume_score:
+              type: number
+            spread_score:
+              type: number
+        data_timestamp:
+          type: string
+          format: date-time
+        disclaimer:
+          type: string
+
+    TechnicalIndicatorsResponse:
+      type: object
+      properties:
+        market_id:
+          type: string
+          example: BTC-CLP
+        period:
+          type: string
+          enum: ["1h", "4h", "1d"]
+        candles_used:
+          type: integer
+          example: 85
+        indicators:
+          type: object
+          nullable: true
+          properties:
+            rsi:
+              type: number
+              nullable: true
+              description: RSI(14). null if insufficient data.
+              example: 62.4
+            macd:
+              type: object
+              nullable: true
+              properties:
+                line:
+                  type: number
+                signal:
+                  type: number
+                histogram:
+                  type: number
+            bollinger_bands:
+              type: object
+              nullable: true
+              properties:
+                upper:
+                  type: number
+                mid:
+                  type: number
+                lower:
+                  type: number
+            sma_20:
+              type: number
+            sma_50:
+              type: number
+        signals:
+          type: object
+          properties:
+            rsi_signal:
+              type: string
+              enum: [overbought, oversold, neutral]
+            macd_signal:
+              type: string
+              enum: [bullish_crossover, bearish_crossover, neutral]
+            bb_signal:
+              type: string
+              enum: [above_upper, below_lower, within_bands]
+        warning:
+          type: string
+          description: Present only when candles_available < 50. Value is "insufficient_data".
+        candles_available:
+          type: integer
+          description: Present only when warning is set.
+        minimum_required:
+          type: integer
+          description: Present only when warning is set. Always 50.
+        disclaimer:
+          type: string
 
     Error:
       type: object
