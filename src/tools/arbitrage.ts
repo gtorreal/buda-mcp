@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BudaClient, BudaApiError } from "../client.js";
 import { MemoryCache, CACHE_TTL } from "../cache.js";
+import { validateCurrency } from "../validation.js";
 import type { AllTickersResponse, Ticker } from "../types.js";
 
 export const toolSchema = {
@@ -51,6 +52,14 @@ export async function handleArbitrageOpportunities(
   client: BudaClient,
   cache: MemoryCache,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
+  const currencyError = validateCurrency(base_currency);
+  if (currencyError) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({ error: currencyError, code: "INVALID_CURRENCY" }) }],
+      isError: true,
+    };
+  }
+
   try {
     const base = base_currency.toUpperCase();
     const data = await cache.getOrFetch<AllTickersResponse>(
@@ -187,6 +196,9 @@ export function register(server: McpServer, client: BudaClient, cache: MemoryCac
     {
       base_currency: z
         .string()
+        .min(2)
+        .max(10)
+        .regex(/^[A-Z0-9]+$/i, "Must be 2–10 alphanumeric characters (e.g. 'BTC', 'ETH').")
         .describe("Base asset to scan (e.g. 'BTC', 'ETH', 'XRP')."),
       threshold_pct: z
         .number()

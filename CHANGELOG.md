@@ -11,6 +11,32 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.5.4] – 2026-04-11
+
+### Security
+
+- **CI/CD supply-chain hardening** — `publish.yml` now verifies the SHA256 checksum of the `mcp-publisher` binary against the official `registry_*_checksums.txt` file before extraction. The download uses `curl -fsSL` (strict) and aborts if the checksum does not match. Previously the binary was piped directly from the network into `tar` without any integrity check.
+
+- **GitHub Actions pinned to immutable commit SHAs** — all three `actions/checkout` and `actions/setup-node` usages in `publish.yml` are now pinned to their exact commit SHA (`11bd71901...` / `49933ea5...`) with the human-readable tag in a comment. Tag-based references (`@v4`) are mutable and could be silently redirected.
+
+- **`DELETE /mcp` protected by rate limiter and auth middleware** — the endpoint was previously unprotected and returned 405 to anyone without any throttling. It now passes through the same `mcpRateLimiter` and `mcpAuthMiddleware` as the `POST`/`GET` `/mcp` handlers.
+
+- **Version removed from unauthenticated `/health` response** — the `version` field was removed from the public health endpoint to prevent fingerprinting of the exact server version. `status`, `server`, and `auth_mode` are still returned.
+
+- **`/.well-known/mcp/server-card.json` gated by auth when credentials are configured** — when `MCP_AUTH_TOKEN` is set, the server-card endpoint now requires the same Bearer token as `/mcp`, preventing unauthenticated enumeration of all tool schemas including authenticated ones.
+
+- **`validateCurrency` added to `get_arbitrage_opportunities`** — the `base_currency` input was the only tool parameter that bypassed the shared currency validator. It now runs `validateCurrency()` before any business logic. The Zod schema in `register()` was also tightened with `.min(2).max(10).regex(/^[A-Z0-9]+$/i)`.
+
+- **`network` field in `create_withdrawal` validated by regex** — the blockchain network identifier for crypto withdrawals is now validated against `/^[a-z][a-z0-9-]{1,29}$/` in the Zod schema, rejecting unexpected values before they reach the Buda API.
+
+- **Audit log for `lightning_withdrawal` now includes amount** — `args_summary` was previously empty (`{}`), making the audit trail useless for this operation. The confirmed withdrawal amount (`amount_btc`) is now included so anomaly detection and post-incident review have meaningful context. The invoice string is still never logged.
+
+- **`safeTokenEqual` now eliminates token-length timing oracle** — both strings are written into equal-length zero-padded `Buffer.alloc(maxLen)` before `timingSafeEqual`, so execution time no longer varies with the difference in string lengths. A final `aByteLen === bByteLen` guard prevents a padded match from returning `true`.
+
+- **CORS policy documented explicitly** — an inline comment clarifies that CORS is intentionally not configured because `buda-mcp` is a server-to-server MCP transport, not a browser client target. `helmet()` already sets the relevant browser security headers.
+
+---
+
 ## [1.5.3] – 2026-04-11
 
 ### Security

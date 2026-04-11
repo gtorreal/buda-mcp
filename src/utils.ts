@@ -3,12 +3,18 @@ import type { Amount, OhlcvCandle } from "./types.js";
 
 /**
  * Constant-time string comparison to prevent timing attacks on bearer tokens.
+ * Both strings are written into equal-length buffers before comparing so that
+ * neither token length nor content can be inferred from execution time.
  */
 export function safeTokenEqual(a: string, b: string): boolean {
-  const aBuf = Buffer.from(a);
-  const bBuf = Buffer.from(b);
-  if (aBuf.length !== bBuf.length) return false;
-  return timingSafeEqual(aBuf, bBuf);
+  const aByteLen = Buffer.byteLength(a);
+  const bByteLen = Buffer.byteLength(b);
+  const maxLen = Math.max(aByteLen, bByteLen);
+  const aBuf = Buffer.alloc(maxLen);
+  const bBuf = Buffer.alloc(maxLen);
+  aBuf.write(a);
+  bBuf.write(b);
+  return timingSafeEqual(aBuf, bBuf) && aByteLen === bByteLen;
 }
 
 /**

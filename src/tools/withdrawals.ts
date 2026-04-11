@@ -281,7 +281,11 @@ export function register(
       currency: z.string().min(2).max(10).describe("Currency code (e.g. 'BTC', 'CLP')."),
       amount: z.number().positive().describe("Withdrawal amount."),
       address: z.string().optional().describe("Destination crypto address. Mutually exclusive with bank_account_id."),
-      network: z.string().optional().describe("Blockchain network for crypto withdrawals (e.g. 'bitcoin', 'ethereum')."),
+      network: z
+        .string()
+        .regex(/^[a-z][a-z0-9-]{1,29}$/, "Must be a lowercase alphanumeric network identifier (e.g. 'bitcoin', 'ethereum').")
+        .optional()
+        .describe("Blockchain network for crypto withdrawals (e.g. 'bitcoin', 'ethereum')."),
       bank_account_id: z.number().int().positive().optional().describe("Fiat bank account ID. Mutually exclusive with address."),
       confirmation_token: z
         .string()

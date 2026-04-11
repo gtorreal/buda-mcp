@@ -1,6 +1,6 @@
-# Publish Checklist — buda-mcp v1.5.3
+# Publish Checklist — buda-mcp v1.5.4
 
-Steps to publish `v1.5.3` to npm, the MCP registry, and notify community directories.
+Steps to publish `v1.5.4` to npm, the MCP registry, and notify community directories.
 
 ---
 
@@ -8,7 +8,7 @@ Steps to publish `v1.5.3` to npm, the MCP registry, and notify community directo
 
 ```bash
 # Confirm version
-node -e "console.log(require('./package.json').version)"  # should print 1.5.3
+node -e "console.log(require('./package.json').version)"  # should print 1.5.4
 
 # Build and test
 npm run build
@@ -37,9 +37,9 @@ Verify: https://www.npmjs.com/package/@guiie/buda-mcp
 
 ## 3. GitHub release
 
-Tag and release already created via `gh release create v1.5.3`. Verify at:
+Tag and release already created via `gh release create v1.5.4`. Verify at:
 
-https://github.com/gtorreal/buda-mcp/releases/tag/v1.5.3
+https://github.com/gtorreal/buda-mcp/releases/tag/v1.5.4
 
 ---
 

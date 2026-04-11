@@ -10,8 +10,8 @@ jobs:
     name: Build & test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: "20"
           cache: "npm"
@@ -28,8 +28,8 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
@@ -53,15 +53,25 @@ jobs:
     name: Publish to MCP Registry
     needs: npm
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       MCP_REGISTRY_TOKEN: ${{ secrets.MCP_REGISTRY_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
       - name: Install mcp-publisher
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
-            | tar xz mcp-publisher
+          RELEASE_TAG=$(gh api repos/modelcontextprotocol/registry/releases/latest --jq '.tag_name')
+          VER="${RELEASE_TAG#v}"
+          curl -fsSL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz"
+          curl -fsSL -o checksums.txt \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${RELEASE_TAG}/registry_${VER}_checksums.txt"
+          grep "mcp-publisher_linux_amd64.tar.gz" checksums.txt | sha256sum --check
+          tar xzf mcp-publisher.tar.gz mcp-publisher
           sudo mv mcp-publisher /usr/local/bin/
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Authenticate and publish to MCP Registry
         run: |
           mcp-publisher login token "$MCP_REGISTRY_TOKEN"

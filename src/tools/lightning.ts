@@ -140,7 +140,13 @@ export async function handleLightningWithdrawal(
         },
       ],
     };
-    logAudit({ ts: new Date().toISOString(), tool: "lightning_withdrawal", transport, args_summary: {}, success: true });
+    logAudit({
+      ts: new Date().toISOString(),
+      tool: "lightning_withdrawal",
+      transport,
+      args_summary: { amount_btc: amount.value },
+      success: true,
+    });
     return result;
   } catch (err) {
     const msg =
@@ -148,7 +154,7 @@ export async function handleLightningWithdrawal(
         ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
     const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
-    logAudit({ ts: new Date().toISOString(), tool: "lightning_withdrawal", transport, args_summary: {}, success: false, error_code: msg.code });
+    logAudit({ ts: new Date().toISOString(), tool: "lightning_withdrawal", transport, args_summary: {}, success: false, error_code: msg.code as string | number });
     return result;
   }
 }

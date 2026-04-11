@@ -233,6 +233,9 @@ function createServer(): McpServer {
 
 const app = express();
 app.use(helmet());
+// CORS: intentionally not configured. This server is designed for server-to-server MCP
+// communication only (AI agents, Claude Desktop, etc.) — not for browser clients.
+// Helmet already sets X-Content-Type-Options, X-Frame-Options, and related headers.
 // trust proxy: 1 = trust exactly one hop (Railway's reverse proxy).
 // If Cloudflare or another proxy is added in front, increment this value.
 // Affects: req.ip and express-rate-limit client IP detection.
@@ -297,19 +300,21 @@ function mcpAuthMiddleware(
   next();
 }
 
-// Health check for Railway / uptime monitors
+// Health check for Railway / uptime monitors.
+// version is intentionally omitted to avoid fingerprinting by unauthenticated callers.
 app.get("/health", staticRateLimiter, (_req, res) => {
   res.json({
     status: "ok",
     server: "buda-mcp",
-    version: VERSION,
     auth_mode: authEnabled ? "authenticated" : "public",
   });
 });
 
 // Smithery static server card — assembled programmatically from tool definitions.
 // Adding a new tool only requires exporting its toolSchema; this handler needs no changes.
-app.get("/.well-known/mcp/server-card.json", staticRateLimiter, (_req, res) => {
+// When auth is enabled, the server card is gated behind the same bearer token as /mcp
+// to avoid leaking the full tool schema to unauthenticated callers.
+app.get("/.well-known/mcp/server-card.json", staticRateLimiter, mcpAuthMiddleware, (_req, res) => {
   res.json({
     serverInfo: { name: "buda-mcp", version: VERSION },
     authentication: { required: authEnabled },
@@ -353,7 +358,7 @@ app.get("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (req, res) => {
   await transport.handleRequest(req, res);
 });
 
-app.delete("/mcp", async (_req, res) => {
+app.delete("/mcp", mcpRateLimiter, mcpAuthMiddleware, async (_req, res) => {
   res.status(405).json({ error: "Sessions not supported (stateless server)" });
 });
 
