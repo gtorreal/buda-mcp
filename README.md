@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
 
-MCP server for [Buda.com](https://www.buda.com/) — the leading cryptocurrency exchange in Chile, Colombia, and Peru. Gives any MCP-compatible AI assistant live access to market data, order books, trade history, spreads, and (when credentials are provided) private account tools.
+MCP server for [Buda.com](https://www.buda.com/) — the leading cryptocurrency exchange in Chile, Colombia, and Peru. Gives any MCP-compatible AI assistant live access to market data, order books, trade history, spreads, and (when credentials are provided) full private account tools including order management, withdrawals, deposits, and Lightning Network payments.
 
 ---
 
@@ -63,17 +63,21 @@ claude mcp add buda-mcp -- npx -y @guiie/buda-mcp
 
 ### Public tools (no credentials required)
 
+#### `get_market_summary` ⭐ Start here
+One-call summary: last price, bid/ask, spread %, 24h volume, price change, and `liquidity_rating` (`high` / `medium` / `low`). Best first tool when a user asks about any specific market.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `market_id` | string | Yes | Market ID (e.g. `BTC-CLP`). |
+
+---
+
 #### `get_markets`
-List all 26 trading pairs on Buda.com, or get details for a specific market.
+List all 26 trading pairs on Buda.com, or get details for a specific market (fees, minimum order size, discount tiers).
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `market_id` | string | No | Market ID (e.g. `BTC-CLP`). Omit to list all markets. |
-
-**Example prompts:**
-- *"List all markets available on Buda.com"*
-- *"What are the trading fees for BTC-CLP?"*
-- *"What's the minimum order size for ETH-COP?"*
 
 ---
 
@@ -84,39 +88,26 @@ Current snapshot: last price, best bid/ask, 24h volume, and price change over 24
 |-----------|------|----------|-------------|
 | `market_id` | string | Yes | Market ID (e.g. `BTC-CLP`, `ETH-COP`). |
 
-**Example prompts:**
-- *"What is the current Bitcoin price in Chilean pesos?"*
-- *"Show me the ETH-COP ticker"*
-- *"How much has BTC changed in the last 7 days on Buda?"*
-
 ---
 
 #### `get_orderbook`
-Current order book: sorted bids and asks as `[price, amount]` pairs.
+Current order book: sorted bids and asks as `{price, amount}` objects.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `market_id` | string | Yes | Market ID. |
 | `limit` | number | No | Max price levels per side (default: all). |
 
-**Example prompts:**
-- *"Show me the BTC-CLP order book — top 10 bids and asks"*
-- *"How deep is the ETH-BTC order book?"*
-
 ---
 
 #### `get_trades`
-Recent trade history. Each entry: `[timestamp_ms, amount, price, direction]`.
+Recent trade history as typed objects: `{timestamp_ms, amount, price, direction}`.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `market_id` | string | Yes | Market ID. |
 | `limit` | number | No | Number of trades (default 50, max 100). |
 | `timestamp` | number | No | Unix seconds — returns trades older than this (pagination). |
-
-**Example prompts:**
-- *"Show the last 20 trades on BTC-CLP"*
-- *"Were there more buys or sells in the last 50 BTC-COP trades?"*
 
 ---
 
@@ -127,10 +118,6 @@ Recent trade history. Each entry: `[timestamp_ms, amount, price, direction]`.
 |-----------|------|----------|-------------|
 | `market_id` | string | Yes | Market ID. |
 
-**Example prompts:**
-- *"How much ETH was traded on Buda in the last 7 days?"*
-- *"What's the BTC-CLP buy vs sell volume over 24 hours?"*
-
 ---
 
 #### `get_spread`
@@ -140,38 +127,101 @@ Bid/ask spread: absolute value and percentage of the ask price.
 |-----------|------|----------|-------------|
 | `market_id` | string | Yes | Market ID. |
 
-**Example prompts:**
-- *"What's the spread on BTC-COP right now?"*
-- *"Is the ETH-CLP spread tighter than BTC-CLP?"*
-
 ---
 
 #### `compare_markets`
-Side-by-side ticker data for all pairs of a given base currency (CLP, COP, PEN, USDC…).
+Side-by-side ticker data for all pairs of a given base currency across all quote currencies.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `base_currency` | string | Yes | Base currency to compare (e.g. `BTC`, `ETH`). |
-
-**Example prompts:**
-- *"Compare the Bitcoin price across all Buda markets"*
-- *"Show me ETH in CLP, COP, and PEN side by side"*
-- *"Which Buda market has the highest BTC trading volume?"*
+| `base_currency` | string | Yes | Base currency (e.g. `BTC`, `ETH`). |
 
 ---
 
 #### `get_price_history`
-OHLCV candles derived from recent trade history (Buda has no native candlestick endpoint — candles are aggregated client-side from raw trades). Candle timestamps are UTC bucket boundaries. Increasing `limit` gives deeper history at the cost of a slower response.
+OHLCV candles aggregated from raw trade history (Buda has no native candlestick endpoint). Supports `5m`, `15m`, `30m`, `1h`, `4h`, `1d` periods.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `market_id` | string | Yes | Market ID. |
-| `period` | `1h` \| `4h` \| `1d` | No | Candle period (default `1h`). |
+| `period` | string | No | `5m` / `15m` / `30m` / `1h` / `4h` / `1d` (default `1h`). |
 | `limit` | number | No | Raw trades to fetch before aggregation (default 100, max 1000). |
 
-**Example prompts:**
-- *"Show me hourly price candles for BTC-CLP"*
-- *"What were the daily open/high/low/close for ETH-COP?"*
+---
+
+#### `get_arbitrage_opportunities`
+Detects cross-country price discrepancies for an asset across Buda's CLP, COP, and PEN markets, normalized to USDC.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `base_currency` | string | Yes | e.g. `BTC`. |
+| `threshold_pct` | number | No | Minimum discrepancy to report (default 0.5). |
+
+---
+
+#### `simulate_order`
+Simulates a buy or sell order using live ticker data — no order is ever placed. Returns `estimated_fill_price`, `fee_amount`, `total_cost`, `slippage_vs_mid_pct`. All responses include `simulation: true`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `market_id` | string | Yes | Market ID. |
+| `side` | `buy` \| `sell` | Yes | Order side. |
+| `amount` | number | Yes | Order size in base currency. |
+| `price` | number | No | Omit for market order simulation. |
+
+---
+
+#### `calculate_position_size`
+Kelly-style position sizing from capital, risk %, entry, and stop-loss. Fully client-side — no API call.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `market_id` | string | Yes | Market ID (for context). |
+| `capital` | number | Yes | Total capital to size from. |
+| `risk_pct` | number | Yes | % of capital to risk (0.1–10). |
+| `entry_price` | number | Yes | Entry price. |
+| `stop_loss_price` | number | Yes | Stop-loss price. |
+
+---
+
+#### `get_market_sentiment`
+Composite sentiment score (−100 to +100) from three components: 24h price variation (40%), volume vs 7-day average (35%), spread vs market-type baseline (25%). Returns `score`, `label`, `component_breakdown`, and a `disclaimer`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `market_id` | string | Yes | Market ID. |
+
+---
+
+#### `get_technical_indicators`
+RSI (14), MACD (12/26/9), Bollinger Bands (20, 2σ), SMA 20, SMA 50 — computed server-side from Buda trade history (no external libraries). Returns signal interpretations and a structured warning if fewer than 20 candles are available. Includes `disclaimer`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `market_id` | string | Yes | Market ID. |
+| `period` | string | No | `1h` / `4h` / `1d` (default `1h`). |
+| `limit` | number | No | Raw trades to fetch (500–1000). |
+
+---
+
+#### `get_real_quotation`
+Returns a real-time quotation for a given order amount and direction, showing exact fill price, fee, and balance changes without placing an order.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `market_id` | string | Yes | Market ID. |
+| `type` | `Bid` \| `Ask` | Yes | Order side. |
+| `amount` | number | Yes | Order size in base currency. |
+| `limit_price` | number | No | Limit price for limit quotations. |
+
+---
+
+#### `get_available_banks`
+Lists available banks for fiat deposits/withdrawals in a given currency's country.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Fiat currency code (e.g. `CLP`, `COP`, `PEN`). |
 
 ---
 
@@ -181,12 +231,26 @@ Available only when `BUDA_API_KEY` and `BUDA_API_SECRET` environment variables a
 
 > **Warning:** Authenticated instances must be run **locally only**. Never expose a server with API credentials to the internet.
 
+#### `get_account_info`
+Returns the authenticated account profile: email, name, and monthly transacted amount.
+
+---
+
 #### `get_balances`
-All currency balances: total, available, frozen, and pending withdrawal.
+All currency balances: total, available, frozen, and pending withdrawal — as floats with `_currency` fields.
 
 **Example prompts:**
 - *"What's my BTC balance on Buda?"*
 - *"Show all my balances"*
+
+---
+
+#### `get_balance`
+Balance for a single currency.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Currency code (e.g. `BTC`, `CLP`). |
 
 ---
 
@@ -200,16 +264,30 @@ Orders for a given market, filterable by state.
 | `per` | number | No | Results per page (default 20, max 300). |
 | `page` | number | No | Page number (default 1). |
 
-**Example prompts:**
-- *"Show my open orders on BTC-CLP"*
-- *"List my last 10 traded orders on ETH-COP"*
+---
+
+#### `get_order`
+Returns a single order by its numeric ID.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `order_id` | number | Yes | Numeric order ID. |
+
+---
+
+#### `get_order_by_client_id`
+Returns an order by the client-assigned string ID set at placement.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `client_id` | string | Yes | Client ID string. |
 
 ---
 
 #### `place_order`
-Place a limit or market order.
+Place a limit or market order. Supports optional time-in-force flags and stop orders.
 
-**Requires `confirmation_token="CONFIRM"`** — prevents accidental execution from ambiguous prompts.
+**Requires `confirmation_token="CONFIRM"`** — prevents accidental execution.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -218,15 +296,18 @@ Place a limit or market order.
 | `price_type` | `limit` \| `market` | Yes | Order type. |
 | `amount` | number | Yes | Order size in base currency. |
 | `limit_price` | number | No | Required for limit orders. |
+| `ioc` | boolean | No | Immediate-or-cancel. Mutually exclusive with `fok`, `post_only`, `gtd_timestamp`. |
+| `fok` | boolean | No | Fill-or-kill. Mutually exclusive with other TIF flags. |
+| `post_only` | boolean | No | Rejected if it would execute as taker. Mutually exclusive with other TIF flags. |
+| `gtd_timestamp` | string | No | Good-till-date (ISO 8601). Mutually exclusive with other TIF flags. |
+| `stop_price` | number | No | Stop trigger price. Must be paired with `stop_type`. |
+| `stop_type` | `>=` \| `<=` | No | Stop trigger direction. Must be paired with `stop_price`. |
 | `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to execute. |
-
-**Example prompts:**
-- *"Place a limit buy order for 0.001 BTC at 60,000,000 CLP on BTC-CLP, confirmation_token=CONFIRM"*
 
 ---
 
 #### `cancel_order`
-Cancel an open order by ID.
+Cancel an open order by numeric ID.
 
 **Requires `confirmation_token="CONFIRM"`**.
 
@@ -237,14 +318,258 @@ Cancel an open order by ID.
 
 ---
 
+#### `cancel_order_by_client_id`
+Cancel an open order by its client-assigned string ID.
+
+**Requires `confirmation_token="CONFIRM"`**.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `client_id` | string | Yes | Client ID string. |
+| `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to cancel. |
+
+---
+
+#### `cancel_all_orders`
+Cancel all open orders in a specific market or across all markets.
+
+**Requires `confirmation_token="CONFIRM"`**.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `market_id` | string | Yes | Market ID (e.g. `BTC-CLP`) or `"*"` to cancel all markets. |
+| `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to cancel. |
+
+---
+
+#### `place_batch_orders`
+Place up to 20 orders sequentially. All orders are pre-validated before any API call — a validation failure aborts with zero orders placed. Partial API failures do not roll back placed orders; a `warning` field surfaces this.
+
+**Requires `confirmation_token="CONFIRM"`**.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `orders` | array | Yes | Array of 1–20 order objects (`market_id`, `type`, `price_type`, `amount`, optional `limit_price`). |
+| `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to execute. |
+
+---
+
+#### `get_network_fees`
+Returns withdrawal fee information for a currency.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Currency code (e.g. `BTC`, `ETH`). |
+
+---
+
+#### `get_deposit_history`
+Deposit history for a currency, filterable by state with pagination.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Currency code. |
+| `state` | string | No | `pending_info`, `pending`, `confirmed`, `anulled`, `retained`. |
+| `per` | number | No | Results per page (default 20, max 300). |
+| `page` | number | No | Page number (default 1). |
+
+---
+
+#### `create_fiat_deposit`
+Record a fiat deposit. **Calling twice creates duplicate records — the confirmation guard is critical.**
+
+**Requires `confirmation_token="CONFIRM"`**.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Fiat currency code (e.g. `CLP`, `COP`, `PEN`). |
+| `amount` | number | Yes | Deposit amount. |
+| `bank` | string | No | Bank name or identifier. |
+| `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to execute. |
+
+---
+
+#### `get_withdrawal_history`
+Withdrawal history for a currency, filterable by state with pagination.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Currency code. |
+| `state` | string | No | `pending_signature`, `pending`, `confirmed`, `rejected`, `anulled`. |
+| `per` | number | No | Results per page (default 20, max 300). |
+| `page` | number | No | Page number (default 1). |
+
+---
+
+#### `create_withdrawal`
+Create a crypto or fiat withdrawal. Exactly one of `address` (crypto) or `bank_account_id` (fiat) must be provided.
+
+**Requires `confirmation_token="CONFIRM"`**.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Currency code (e.g. `BTC`, `CLP`). |
+| `amount` | number | Yes | Withdrawal amount. |
+| `address` | string | No | Destination crypto address. Mutually exclusive with `bank_account_id`. |
+| `network` | string | No | Blockchain network (e.g. `bitcoin`, `ethereum`). |
+| `bank_account_id` | number | No | Fiat bank account ID. Mutually exclusive with `address`. |
+| `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to execute. |
+
+---
+
+#### `list_receive_addresses`
+Lists all receive addresses for a currency.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Currency code (e.g. `BTC`). |
+
+---
+
+#### `get_receive_address`
+Returns the current active receive address for a currency.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Currency code. |
+
+---
+
+#### `create_receive_address`
+Generate a new receive address for a crypto currency.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Crypto currency code (e.g. `BTC`, `ETH`). |
+
+---
+
+#### `list_remittances`
+Lists remittances on the account with pagination.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per` | number | No | Results per page (default 20, max 300). |
+| `page` | number | No | Page number (default 1). |
+
+---
+
+#### `get_remittance`
+Returns a single remittance by ID.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | number | Yes | Remittance ID. |
+
+---
+
+#### `quote_remittance`
+Request a remittance quote for a given recipient and amount.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `currency` | string | Yes | Currency code. |
+| `amount` | number | Yes | Amount to remit. |
+| `recipient_id` | number | Yes | Remittance recipient ID. |
+
+---
+
+#### `accept_remittance_quote`
+Accept a remittance quote to execute the transfer.
+
+**Requires `confirmation_token="CONFIRM"`**.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | number | Yes | Remittance ID to accept. |
+| `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to execute. |
+
+---
+
+#### `list_remittance_recipients`
+Lists saved remittance recipients with pagination.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `per` | number | No | Results per page. |
+| `page` | number | No | Page number. |
+
+---
+
+#### `get_remittance_recipient`
+Returns a single remittance recipient by ID.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | number | Yes | Recipient ID. |
+
+---
+
+#### `lightning_withdrawal`
+Pay a Bitcoin Lightning Network BOLT-11 invoice from the LN-BTC reserve. Funds leave immediately on success.
+
+**Requires `confirmation_token="CONFIRM"`**.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `invoice` | string | Yes | BOLT-11 invoice string (starts with `lnbc`, `lntb`, etc.). |
+| `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to execute. |
+
+---
+
+#### `create_lightning_invoice`
+Create a Bitcoin Lightning Network receive invoice. No confirmation required — no funds leave the account.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `amount_satoshis` | number | Yes | Invoice amount in satoshis. |
+| `description` | string | No | Payment description (max 140 characters). |
+| `expiry_seconds` | number | No | Invoice expiry in seconds (60–86400, default 3600). |
+
+---
+
+#### `schedule_cancel_all`
+Arms an in-memory dead man's switch: if not renewed within `ttl_seconds`, all open orders for the market are automatically cancelled.
+
+**Requires `confirmation_token="CONFIRM"`**.
+
+> **Warning:** Timer state is lost on server restart. Use only on locally-run instances — never Railway or hosted deployments.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `market_id` | string | Yes | Market ID to cancel orders for. |
+| `ttl_seconds` | number | Yes | Seconds before auto-cancel fires (10–300). |
+| `confirmation_token` | string | Yes | Must equal `"CONFIRM"` to arm. |
+
+---
+
+#### `renew_cancel_timer`
+Resets the dead man's switch TTL for a market. No confirmation required.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `market_id` | string | Yes | Market ID. |
+
+---
+
+#### `disarm_cancel_timer`
+Disarms the dead man's switch without cancelling any orders. Safe to call with no active timer.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `market_id` | string | Yes | Market ID. |
+
+---
+
 ## MCP Resources
 
-In addition to tools, the server exposes two MCP Resources that clients can read directly:
+In addition to tools, the server exposes MCP Resources that clients can read directly:
 
 | URI | Description |
 |-----|-------------|
 | `buda://markets` | JSON list of all Buda.com markets |
 | `buda://ticker/{market}` | JSON ticker for a specific market (e.g. `buda://ticker/BTC-CLP`) |
+| `buda://summary/{market}` | Full market summary with liquidity rating (e.g. `buda://summary/BTC-CLP`) |
 
 ---
 
@@ -252,7 +577,7 @@ In addition to tools, the server exposes two MCP Resources that clients can read
 
 The server defaults to **public-only mode** — no API key needed, no breaking changes for existing users.
 
-To enable authenticated tools, copy `.env.example` to `.env` and fill in your credentials, then set them as environment variables before running:
+To enable authenticated tools, set environment variables before running:
 
 ```bash
 BUDA_API_KEY=your_api_key BUDA_API_SECRET=your_api_secret npx @guiie/buda-mcp
@@ -304,10 +629,12 @@ node dist/index.js        # stdio (for MCP clients)
 node dist/http.js         # HTTP on port 3000 (for Railway / hosted)
 ```
 
-Run tests (requires live internet access):
+Run tests:
 
 ```bash
-npm test
+npm run test:unit        # 138 unit tests, no network required
+npm run test:integration # live API tests (skips if unreachable)
+npm test                 # both
 ```
 
 ---
@@ -328,29 +655,54 @@ Set `PORT` environment variable to override the default `3000`.
 
 ```
 src/
-  client.ts          BudaClient (HTTP + HMAC auth)
-  cache.ts           In-memory TTL cache
-  types.ts           TypeScript types for Buda API responses
-  index.ts           stdio MCP server entrypoint
-  http.ts            HTTP/SSE MCP server entrypoint
+  client.ts                   BudaClient (HTTP + HMAC auth + 429 retry)
+  cache.ts                    In-memory TTL cache with in-flight deduplication
+  types.ts                    TypeScript types for Buda API responses
+  validation.ts               validateMarketId() and validateCurrency()
+  utils.ts                    flattenAmount(), aggregateTradesToCandles(), getLiquidityRating()
+  version.ts                  Single source of truth for version string
+  index.ts                    stdio MCP server entrypoint
+  http.ts                     HTTP/SSE MCP server entrypoint
   tools/
-    markets.ts       get_markets
-    ticker.ts        get_ticker
-    orderbook.ts     get_orderbook
-    trades.ts        get_trades
-    volume.ts        get_market_volume
-    spread.ts        get_spread
-    compare_markets.ts  compare_markets
-    price_history.ts get_price_history
-    balances.ts      get_balances (auth)
-    orders.ts        get_orders (auth)
-    place_order.ts   place_order (auth)
-    cancel_order.ts  cancel_order (auth)
+    markets.ts                get_markets
+    ticker.ts                 get_ticker
+    orderbook.ts              get_orderbook
+    trades.ts                 get_trades
+    volume.ts                 get_market_volume
+    spread.ts                 get_spread
+    compare_markets.ts        compare_markets
+    price_history.ts          get_price_history
+    arbitrage.ts              get_arbitrage_opportunities
+    market_summary.ts         get_market_summary
+    simulate_order.ts         simulate_order
+    calculate_position_size.ts calculate_position_size
+    market_sentiment.ts       get_market_sentiment
+    technical_indicators.ts   get_technical_indicators
+    banks.ts                  get_available_banks
+    quotation.ts              get_real_quotation
+    account.ts                get_account_info (auth)
+    balance.ts                get_balance (auth)
+    balances.ts               get_balances (auth)
+    orders.ts                 get_orders (auth)
+    order_lookup.ts           get_order, get_order_by_client_id (auth)
+    place_order.ts            place_order (auth)
+    cancel_order.ts           cancel_order (auth)
+    cancel_all_orders.ts      cancel_all_orders (auth)
+    cancel_order_by_client_id.ts  cancel_order_by_client_id (auth)
+    batch_orders.ts           place_batch_orders (auth)
+    fees.ts                   get_network_fees (auth)
+    deposits.ts               get_deposit_history, create_fiat_deposit (auth)
+    withdrawals.ts            get_withdrawal_history, create_withdrawal (auth)
+    receive_addresses.ts      list/get/create_receive_address (auth)
+    remittances.ts            list/get/quote/accept remittances (auth)
+    remittance_recipients.ts  list/get remittance recipients (auth)
+    lightning.ts              lightning_withdrawal, create_lightning_invoice (auth)
+    dead_mans_switch.ts       schedule_cancel_all, renew/disarm_cancel_timer (auth)
 marketplace/
-  cursor-mcp.json    Cursor MCP config example
-  claude-listing.md  Claude registry listing
-  openapi.yaml       OpenAPI spec (GPT Actions / HTTP wrapper)
-  gemini-tools.json  Gemini function declarations
+  cursor-mcp.json             Cursor MCP config example
+  claude-listing.md           Claude registry listing
+  openapi.yaml                OpenAPI spec (GPT Actions / HTTP wrapper)
+  gemini-tools.json           Gemini function declarations
 ```
 
 ---

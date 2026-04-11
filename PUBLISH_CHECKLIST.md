@@ -1,8 +1,6 @@
-# Publish Checklist — buda-mcp v1.4.0
+# Publish Checklist — buda-mcp v1.5.0
 
-Steps to publish `v1.4.0` to npm, the MCP registry, and notify community directories.
-
-> **Important for v1.4.0:** The new `schedule_cancel_all` tool uses in-memory timer state that is lost on server restart. This is prominently documented in the tool description, README auth section, and CHANGELOG. Do NOT encourage users to rely on this tool in hosted/Railway deployments.
+Steps to publish `v1.5.0` to npm, the MCP registry, and notify community directories.
 
 ---
 
@@ -10,13 +8,13 @@ Steps to publish `v1.4.0` to npm, the MCP registry, and notify community directo
 
 ```bash
 # Confirm version
-node -e "console.log(require('./package.json').version)"  # should print 1.4.0
+node -e "console.log(require('./package.json').version)"  # should print 1.5.0
 
 # Build and test
 npm run build
 npm test
 
-# Sync server.json version (already done, but run again to confirm)
+# Sync server.json version (already done, but confirm)
 npm run sync-version
 
 # Verify no credentials are logged (audit)
@@ -39,58 +37,9 @@ Verify: https://www.npmjs.com/package/@guiie/buda-mcp
 
 ## 3. GitHub release
 
-```bash
-git add -A
-git commit -m "chore: release v1.4.0
+Tag and release already created via `gh release create v1.5.0`. Verify at:
 
-- simulate_order: live order cost simulation (no order placed, simulation: true)
-- calculate_position_size: Kelly-style sizing from capital/risk/entry/stop (client-side)
-- get_market_sentiment: composite score -100..+100 from price/volume/spread
-- get_technical_indicators: RSI/MACD/BB/SMA20/SMA50 from trade history (no libs)
-- schedule_cancel_all + renew_cancel_timer + disarm_cancel_timer: in-memory dead man's switch (auth-gated)
-- aggregateTradesToCandles() extracted to utils.ts (shared by price_history + technical_indicators)
-- OhlcvCandle interface moved to types.ts
-- 59 unit tests (24 new)"
-
-git tag v1.4.0
-git push origin main --tags
-```
-
-Then create a GitHub Release from the tag:
-
----
-
-**Release notes template (GitHub):**
-
-```
-## buda-mcp v1.4.0 — Trading Tools
-
-### 5 new tools
-
-**`simulate_order`** (public)
-Simulates a buy or sell order using live ticker data — no order placed. Returns estimated fill price, fee (actual taker rate from market data: 0.8% crypto / 0.5% stablecoin), total cost, and slippage vs mid. All outputs include simulation: true.
-
-**`calculate_position_size`** (public)
-Kelly-style position sizing from capital, risk %, entry, and stop-loss. Fully client-side. Returns units, capital_at_risk, position_value, fee_impact, and a plain-text risk note.
-
-**`get_market_sentiment`** (public)
-Composite sentiment score (−100 to +100) from price variation 24h (40%), volume vs 7d average (35%), and spread vs market-type baseline (25%). Returns score, label, component breakdown, and disclaimer.
-
-**`get_technical_indicators`** (public)
-RSI (14), MACD (12/26/9), Bollinger Bands (20, 2σ), SMA 20, SMA 50 — computed server-side from Buda trade history with no external libraries. Returns signal interpretations and structured warning if insufficient candles.
-
-**`schedule_cancel_all` + `renew_cancel_timer` + `disarm_cancel_timer`** (auth-gated)
-In-memory dead man's switch: arms a timer that cancels all open orders if not renewed. WARNING: timer state is lost on server restart. Use only on locally-run instances.
-
-### Infrastructure
-- `aggregateTradesToCandles()` extracted to `utils.ts` — shared by `get_price_history` and `get_technical_indicators`
-- `OhlcvCandle` interface exported from `types.ts`
-- 59 unit tests (was 35)
-
-```bash
-npx @guiie/buda-mcp
-```
-```
+https://github.com/gtorreal/buda-mcp/releases/tag/v1.5.0
 
 ---
 
@@ -115,19 +64,22 @@ Verify: https://smithery.ai/server/@guiie/buda-mcp
 **Email/message template:**
 
 ```
-Subject: [Update] buda-mcp v1.4.0 — simulate_order, technical indicators, sentiment, position sizing, dead man's switch
+Subject: [Update] buda-mcp v1.5.0 — Withdrawals, Deposits, Batch Orders & Lightning
 
 Hi mcp.so team,
 
-I've released v1.4.0 of buda-mcp (@guiie/buda-mcp on npm).
+I've released v1.5.0 of buda-mcp (@guiie/buda-mcp on npm).
 
-Key changes (5 new tools + 3 sub-tools):
-- simulate_order: live order cost simulation with actual fee rates (no order placed)
-- calculate_position_size: Kelly-style position sizing (fully client-side)
-- get_market_sentiment: composite score -100..+100 from price/volume/spread microstructure
-- get_technical_indicators: RSI/MACD/Bollinger Bands/SMA (no external libs, from trade history)
-- schedule_cancel_all / renew_cancel_timer / disarm_cancel_timer: in-memory dead man's switch (auth-gated)
-- 59 unit tests (was 35)
+Key changes (8 new authenticated tools):
+- cancel_all_orders: cancel all open orders (one market or all markets)
+- cancel_order_by_client_id: cancel by client-assigned string ID
+- place_batch_orders: place up to 20 orders with pre-validation (no rollback on partial failure)
+- place_order extended: TIF flags (ioc/fok/post_only/gtd) + stop orders
+- create_withdrawal: crypto (address) or fiat (bank_account_id) withdrawals
+- create_fiat_deposit: record fiat deposits with duplicate guard
+- lightning_withdrawal: pay a BOLT-11 invoice from LN-BTC reserve
+- create_lightning_invoice: create a Lightning receive invoice
+- 138 unit tests (was 106)
 
 Links:
 - npm: https://www.npmjs.com/package/@guiie/buda-mcp
@@ -146,23 +98,24 @@ Thank you!
 **Message template:**
 
 ```
-Subject: [Update] buda-mcp v1.4.0
+Subject: [Update] buda-mcp v1.5.0
 
 Hi Glama team,
 
-buda-mcp has been updated to v1.4.0.
+buda-mcp has been updated to v1.5.0.
 
 Package: @guiie/buda-mcp (npm)
 Registry: io.github.gtorreal/buda-mcp (MCP Registry)
-Version: 1.4.0
+Version: 1.5.0
 
-Changes (5 new tools + 3 sub-tools):
-- simulate_order: order simulation with live data, simulation: true always set
-- calculate_position_size: client-side position sizing
-- get_market_sentiment: composite sentiment score with disclaimers
-- get_technical_indicators: RSI/MACD/BB/SMA from trade history
-- schedule_cancel_all + renew/disarm: in-memory dead man's switch (auth-gated, local use only)
-- 59 unit tests
+Changes (8 new authenticated tools):
+- cancel_all_orders / cancel_order_by_client_id: flexible order cancellation
+- place_batch_orders: sequential multi-order placement with pre-validation
+- place_order extended: IOC/FOK/post_only/GTD + stop orders
+- create_withdrawal: crypto + fiat withdrawals
+- create_fiat_deposit: fiat deposit recording
+- lightning_withdrawal + create_lightning_invoice: Lightning Network support
+- 138 unit tests
 
 Quick start:
   npx @guiie/buda-mcp
@@ -177,21 +130,21 @@ Thank you!
 
 ## 8. Post-publish verification
 
-- [ ] `npx @guiie/buda-mcp@1.4.0` starts successfully
-- [ ] `npm info @guiie/buda-mcp version` returns `1.4.0`
-- [ ] GitHub release tag `v1.4.0` is visible
-- [ ] MCP Registry entry reflects v1.4.0
-- [ ] Smithery server card lists 14 public tools (including 4 new: simulate_order, calculate_position_size, get_market_sentiment, get_technical_indicators)
-- [ ] Smithery server card lists 7 auth tools (including schedule_cancel_all, renew_cancel_timer, disarm_cancel_timer)
-- [ ] `GET /health` returns `"version":"1.4.0"` on Railway deployment
-- [ ] simulate_order response includes `simulation: true`
-- [ ] get_technical_indicators returns `warning: "insufficient_data"` for markets with few trades
-- [ ] schedule_cancel_all requires `confirmation_token="CONFIRM"` (test with wrong token)
+- [ ] `npx @guiie/buda-mcp@1.5.0` starts successfully
+- [ ] `npm info @guiie/buda-mcp version` returns `1.5.0`
+- [ ] GitHub release tag `v1.5.0` is visible ✅ (already created)
+- [ ] MCP Registry entry reflects v1.5.0
+- [ ] Smithery server card lists all new tools
+- [ ] `GET /health` returns `"version":"1.5.0"` on Railway deployment
+- [ ] `cancel_all_orders` requires `confirmation_token="CONFIRM"` (test with wrong token)
+- [ ] `place_batch_orders` returns pre-validation error for invalid market (zero API calls)
+- [ ] `lightning_withdrawal` shows invoice preview in CONFIRMATION_REQUIRED response
+- [ ] `create_lightning_invoice` succeeds without confirmation token
 - [ ] mcp.so listing updated
 - [ ] Glama.ai listing updated
 
 ---
 
-## ARCHIVED: v1.3.0 checklist
+## ARCHIVED: v1.4.x checklists
 
-See git tag `v1.3.0` for the v1.3.0 release notes and verification steps.
+See git tags `v1.4.0`, `v1.4.1`, `v1.4.2` for previous release notes and verification steps.
