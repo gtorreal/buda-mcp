@@ -285,11 +285,11 @@ Authentication uses HMAC-SHA384 signing per the [Buda API docs](https://api.buda
 
 | Quote | Country | Sample pairs |
 |-------|---------|-------------|
-| CLP | Chile | BTC-CLP, ETH-CLP, XRP-CLP |
-| COP | Colombia | BTC-COP, ETH-COP, XRP-COP |
+| CLP | Chile | BTC-CLP, ETH-CLP, SOL-CLP |
+| COP | Colombia | BTC-COP, ETH-COP, SOL-COP |
 | PEN | Peru | BTC-PEN, ETH-PEN |
-| USDC | USD-pegged | BTC-USDC, ETH-USDC |
-| BTC | Cross | ETH-BTC, XRP-BTC, BCH-BTC |
+| USDC | USD-pegged | BTC-USDC, USDT-USDC |
+| BTC | Cross | ETH-BTC, LTC-BTC, BCH-BTC |
 
 ---
 
