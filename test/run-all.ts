@@ -3,8 +3,24 @@
  * and prints a summary of the results.
  *
  * Run with: npm run test:integration
+ * Auth tools (balances, orders, DMS) are tested automatically if a .env file with
+ * BUDA_API_KEY and BUDA_API_SECRET exists in the project root (already in .gitignore).
  * Skipped automatically when the Buda API is unreachable (CI without network).
  */
+
+// Load .env if present (never committed — see .gitignore)
+import { existsSync, readFileSync } from "fs";
+if (existsSync(".env")) {
+  for (const line of readFileSync(".env", "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
+    if (key && !(key in process.env)) process.env[key] = val;
+  }
+}
 
 // Connectivity pre-check — skip gracefully instead of failing CI when the API is unreachable.
 try {
