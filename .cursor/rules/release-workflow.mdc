@@ -1,0 +1,54 @@
+---
+description: Release workflow and publishing checklist for buda-mcp
+alwaysApply: true
+---
+
+# buda-mcp Release Workflow
+
+## Version source-of-truth
+
+- `package.json` is the **only** place to set the version number.
+- After changing it, always run `npm run sync-version` to propagate it to `server.json`.
+- All runtime references (`User-Agent`, `McpServer`, health endpoint, server-card) read from `src/version.ts` — never hardcode version strings.
+
+## Before publishing a new version
+
+1. Bump `package.json` version
+2. `npm run sync-version` — updates `server.json`
+3. `npm test` — must pass (23 unit + all integration)
+4. Update `CHANGELOG.md` with all changes since the last release
+5. Update `marketplace/` files if tools were added/changed/removed:
+   - `marketplace/gemini-tools.json` — function declarations
+   - `marketplace/openapi.yaml` — version field + path descriptions
+   - `marketplace/claude-listing.md` — tool descriptions
+   - `marketplace/README.md` — version header
+6. Update `PUBLISH_CHECKLIST.md` with new version and release notes template
+7. Commit and push
+
+## Publishing steps (manual, done after development is complete)
+
+```bash
+npm publish --access public --provenance   # → npmjs.com
+# then create GitHub Release tag vX.Y.Z → triggers Actions workflow (MCP registry auto-publish)
+# then notify mcp.so and Glama.ai — templates in PUBLISH_CHECKLIST.md
+```
+
+## Adding a new tool
+
+1. Create `src/tools/<name>.ts`
+2. Export `toolSchema` (name, description, inputSchema) — picked up automatically by `http.ts` server-card
+3. Export `register(server, client, cache?)` 
+4. For tools with destructive actions: export the handler function for unit testing
+5. Apply `validateMarketId` if the tool accepts `market_id`
+6. Register in both `src/index.ts` and `src/http.ts`
+7. Add to `marketplace/gemini-tools.json`, `marketplace/openapi.yaml`, `marketplace/claude-listing.md`
+8. Add unit tests in `test/unit.ts`
+
+## Key architecture notes
+
+- `src/validation.ts` — `validateMarketId(id)` returns error string or null; apply before `.toLowerCase()` and URL use
+- `src/cache.ts` — `MemoryCache` with in-flight deduplication; TTLs: markets 60s, tickers 5s, orderbooks 3s
+- `BudaApiError` has `retryAfterMs` for 429 responses; client retries once honoring `Retry-After` header (seconds, RFC 7231, default 1s)
+- Auth tools only registered when `BUDA_API_KEY` + `BUDA_API_SECRET` env vars are present
+- `scripts/sync-version.mjs` — run via `npm run sync-version`
+- Unit tests: `npm run test:unit` (no network); Integration: `npm run test:integration` (skips if API unreachable)
