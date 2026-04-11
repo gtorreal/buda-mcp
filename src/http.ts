@@ -73,6 +73,21 @@ const client = new BudaClient(
 
 const authEnabled = client.hasAuth();
 
+// When auth credentials are set but no TLS-terminating proxy is declared
+// (TRUST_PROXY_HOPS=0), the server may be exposed over plain HTTP. That
+// would transmit BUDA_API_KEY, BUDA_API_SECRET, and MCP_AUTH_TOKEN in
+// cleartext. Warn loudly so self-hosters on raw VPS instances notice.
+// Set SKIP_TLS_CHECK=true to suppress (e.g. for localhost development).
+if (authEnabled && TRUST_PROXY_HOPS === 0 && process.env.SKIP_TLS_CHECK !== "true") {
+  console.warn(
+    "[buda-mcp] WARNING: Auth credentials are set but TRUST_PROXY_HOPS=0.\n" +
+    "  No TLS-terminating proxy is declared in front of this server.\n" +
+    "  Running over plain HTTP exposes your API key and secret to network interception.\n" +
+    "  Deploy behind a TLS proxy (Railway, Nginx, Caddy) or set SKIP_TLS_CHECK=true\n" +
+    "  to suppress this warning (e.g. for localhost development).",
+  );
+}
+
 // Schemas for the Smithery server-card — assembled from the same definitions used in register().
 // Adding a new tool only requires exporting its toolSchema; no changes needed here.
 const PUBLIC_TOOL_SCHEMAS = [

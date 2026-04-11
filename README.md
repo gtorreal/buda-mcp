@@ -645,6 +645,32 @@ npm test                 # both
 
 ---
 
+## Security
+
+### Recommended deployment: stdio (local)
+
+The safest way to use buda-mcp is the default one — running it locally via `npx` as a stdio process inside your MCP client (Claude Desktop, Cursor, Claude Code). In this mode:
+
+- Your Buda API credentials are set as environment variables on your own machine and never leave it
+- There is no network socket — the transport is an in-process pipe
+- There is no bearer token to manage or rotate
+
+**For personal use, this is the only deployment model you need.**
+
+### Self-hosting the HTTP server
+
+The HTTP server (`npm start`) is designed for single-tenant deployments where you want to access your Buda account from a remote AI client. If you run it:
+
+- **TLS is mandatory when credentials are configured.** Deploy behind a TLS-terminating proxy (Railway, Nginx, Caddy). Running over plain HTTP exposes your API key, secret, and bearer token to network interception. The server will warn at startup if `TRUST_PROXY_HOPS=0` and credentials are set.
+- **`MCP_AUTH_TOKEN` is the only security boundary.** Anyone who holds a valid token has full account access — including placing orders, creating withdrawals, and making Lightning payments. Treat it with the same care as your Buda API secret.
+- **`confirmation_token='CONFIRM'` is a UX guard, not a cryptographic gate.** It prevents accidental execution by AI agents acting on ambiguous prompts. It does not prevent a determined caller with a valid bearer token from executing any operation.
+
+### Reporting vulnerabilities
+
+Please report security issues privately via [GitHub Security Advisories](https://github.com/gtorreal/buda-mcp/security/advisories/new) — not as public issues. See [SECURITY.md](SECURITY.md) for the full disclosure policy and scope definition.
+
+---
+
 ## HTTP / Railway deployment
 
 The `dist/http.js` entrypoint runs an Express server with:
