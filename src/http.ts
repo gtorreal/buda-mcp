@@ -276,8 +276,8 @@ if (MCP_AUTH_TOKEN && MCP_AUTH_TOKEN.length < 32) {
 
 if (MCP_AUTH_TOKEN && !isTokenEntropyOk(MCP_AUTH_TOKEN)) {
   console.error(
-    "[buda-mcp] FATAL: MCP_AUTH_TOKEN has insufficient entropy (fewer than 8 distinct characters).\n" +
-    "  Use a long random secret (e.g. openssl rand -hex 32).",
+    "[buda-mcp] FATAL: MCP_AUTH_TOKEN has insufficient entropy (Shannon entropy below 3.5 bits/char).\n" +
+    "  Use a high-entropy random secret (e.g. openssl rand -hex 32).",
   );
   process.exit(1);
 }

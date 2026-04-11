@@ -11,6 +11,12 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Security
 
+- **BOLT-11 regex is now strictly lowercase** — the `i` (case-insensitive) flag was removed from the validation regex in `lightning_withdrawal`. Bech32 encoding is strictly lowercase; the flag was silently accepting uppercase invoice strings that the exchange would reject, giving false format-check confidence.
+
+- **`isTokenEntropyOk` now uses Shannon entropy** — the bearer-token entropy check previously required only ≥ 8 distinct characters (`new Set(token).size >= 8`). Repeating patterns with exactly 8 distinct chars (e.g. `abcdefgh` × 4, log₂(8) = 3.0 bits/char) or UUID-style strings (~3.4 bits/char) passed despite being weak secrets. The check now computes Shannon entropy and requires ≥ 3.5 bits/char. Any `openssl rand -hex 32` output (~4.0 bits/char) comfortably passes; the startup error message is updated accordingly.
+
+- **`validateCryptoAddress` surfaces a warning for unknown currencies** — the function previously returned `null` silently for currencies not in `ADDRESS_RULES` (e.g. SOL, ADA, MATIC), meaning no client-side address validation occurred before an irreversible crypto withdrawal. The return type is now `{ error: string | null; warning: string | null }`. An unknown currency returns `error: null, warning: "No local address format rule…"`. The `create_withdrawal` handler includes the warning in the success response payload so the caller (AI agent or operator) sees it before the funds leave.
+
 - **Validation errors no longer reflect user input (prompt-injection fix)** — `validateMarketId` and `validateCurrency` previously embedded the raw caller-supplied string verbatim in their error messages (e.g. `Invalid market ID "${id}"`). An LLM-controlled caller could craft a `market_id` value that injects arbitrary text into the model's context. Both functions now return fixed, static error strings with no user data.
 
 - **`trust proxy` hop count is now configurable via `TRUST_PROXY_HOPS`** — the Express `trust proxy` setting was hardcoded to `1`. If a second reverse-proxy layer is added (e.g. Cloudflare in front of Railway), clients can spoof `X-Forwarded-For` and bypass the IP-based rate limiter. The value is now read from the `TRUST_PROXY_HOPS` env var (default: `1`, range: 0–10) via `parseEnvInt`, which exits with a fatal error on invalid input.
@@ -33,17 +39,18 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ### Tests
 
-- 73 new unit tests across 10 new security sections. Total: 233 unit tests.
+- 75 new unit tests across 10 new security sections (+ 2 updated for new semantics). Total: 234 unit tests.
   - `L6 — Nonce counter uniqueness` (3 tests)
   - `L5 — cancel_order_by_client_id handler-level client_id length guard` (3 tests)
   - `L3 — place_order gtd_timestamp 90-day upper bound` (3 tests)
   - `L2 — Withdrawal address max length` (3 tests)
   - `L1 — Lightning invoice max length guard` (2 tests)
-  - `M4 — isTokenEntropyOk: bearer token entropy check` (7 tests)
+  - `M4 — isTokenEntropyOk: bearer token entropy check` (8 tests, updated for Shannon entropy threshold)
   - `H2 — TRUST_PROXY_HOPS range validation` (6 tests)
   - `H1 — validation error messages do not reflect user input` (4 tests)
   - `M1 — create_fiat_deposit audit logging` (3 tests)
   - `M2 — Error messages do not expose API path to callers` (3 tests)
+  - `validateCryptoAddress` tests updated to assert `{ error, warning }` shape; unknown-currency warning path covered
 
 ---
 

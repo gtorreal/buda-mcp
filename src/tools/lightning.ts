@@ -93,7 +93,7 @@ export async function handleLightningWithdrawal(
     };
   }
 
-  const BOLT11_RE = /^ln(bc|tb|bcrt)\d*[munp]?1[a-z0-9]{20,1800}$/i;
+  const BOLT11_RE = /^ln(bc|tb|bcrt)\d*[munp]?1[a-z0-9]{20,1800}$/;
   if (!BOLT11_RE.test(invoice)) {
     return {
       content: [{

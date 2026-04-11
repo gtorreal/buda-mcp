@@ -45,17 +45,34 @@ const ADDRESS_RULES: Record<string, RegExp> = {
 
 /**
  * Validates a crypto withdrawal address against known per-currency formats.
- * Returns an error message string if the address is invalid, or null if valid
- * (including null for unknown currencies, where the exchange is the last line of defence).
+ *
+ * Returns { error, warning } where:
+ *   - error: non-null when the address is definitively invalid for a known currency.
+ *   - warning: non-null when the currency is unknown and no local rule exists —
+ *     the caller should surface this to the user before proceeding, since the
+ *     exchange is then the only validation gate and withdrawals are irreversible.
  */
-export function validateCryptoAddress(address: string, currency: string): string | null {
+export function validateCryptoAddress(
+  address: string,
+  currency: string,
+): { error: string | null; warning: string | null } {
   const rule = ADDRESS_RULES[currency.toUpperCase()];
-  if (!rule) return null;
-  if (!rule.test(address)) {
-    return (
-      `Invalid ${currency.toUpperCase()} address format. ` +
-      `Double-check the destination address — crypto withdrawals are irreversible.`
-    );
+  if (!rule) {
+    return {
+      error: null,
+      warning:
+        `No local address format rule for ${currency.toUpperCase()}. ` +
+        `Verify the destination address carefully — crypto withdrawals are irreversible. ` +
+        `The exchange will perform its own validation.`,
+    };
   }
-  return null;
+  if (!rule.test(address)) {
+    return {
+      error:
+        `Invalid ${currency.toUpperCase()} address format. ` +
+        `Double-check the destination address — crypto withdrawals are irreversible.`,
+      warning: null,
+    };
+  }
+  return { error: null, warning: null };
 }

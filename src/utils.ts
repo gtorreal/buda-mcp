@@ -18,12 +18,20 @@ export function safeTokenEqual(a: string, b: string): boolean {
 }
 
 /**
- * Returns true when the token has sufficient entropy for use as a bearer secret.
- * Requires at least 8 distinct characters, which rejects low-entropy values like
- * repeated characters (e.g. "aaaa...a") or simple keyboard runs.
+ * Returns true when the token has sufficient Shannon entropy for use as a bearer secret.
+ * Requires at least 3.5 bits per character, which accepts any `openssl rand -hex 32`
+ * output (~4 bits/char) while rejecting repeating patterns and keyboard walks
+ * that merely have 8+ distinct characters.
  */
 export function isTokenEntropyOk(token: string): boolean {
-  return new Set(token).size >= 8;
+  const len = token.length;
+  const freq = new Map<string, number>();
+  for (const ch of token) freq.set(ch, (freq.get(ch) ?? 0) + 1);
+  const entropy = Array.from(freq.values()).reduce((sum, count) => {
+    const p = count / len;
+    return sum - p * Math.log2(p);
+  }, 0);
+  return entropy >= 3.5;
 }
 
 /**

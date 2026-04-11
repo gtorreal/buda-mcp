@@ -3074,47 +3074,56 @@ await test("handleCreateLightningInvoice: API error passthrough", async () => {
 section("validateCryptoAddress");
 
 await test("validateCryptoAddress: valid BTC bech32 address passes", () => {
-  assertEqual(validateCryptoAddress("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", "BTC"), null, "valid bech32 should pass");
+  const result = validateCryptoAddress("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq", "BTC");
+  assertEqual(result.error, null, "valid bech32 should pass");
+  assertEqual(result.warning, null, "valid known-currency address should have no warning");
 });
 
 await test("validateCryptoAddress: valid BTC legacy P2PKH address passes", () => {
-  assertEqual(validateCryptoAddress("1BpEi6DfDAUFd153wiGrvkiKyhSua3FrN", "BTC"), null, "valid P2PKH should pass");
+  const result = validateCryptoAddress("1BpEi6DfDAUFd153wiGrvkiKyhSua3FrN", "BTC");
+  assertEqual(result.error, null, "valid P2PKH should pass");
 });
 
 await test("validateCryptoAddress: BTC address too short after bc1 prefix is rejected", () => {
   // bc1 + fewer than 6 alphanumeric chars — too short to be a real address
-  assert(validateCryptoAddress("bc1qa", "BTC") !== null, "bc1 + 1 char should fail");
+  assert(validateCryptoAddress("bc1qa", "BTC").error !== null, "bc1 + 1 char should fail");
 });
 
 await test("validateCryptoAddress: BTC address with wrong prefix is rejected", () => {
-  assert(validateCryptoAddress("XpubBadAddress1234567890abcdefgh", "BTC") !== null, "wrong prefix should fail");
+  assert(validateCryptoAddress("XpubBadAddress1234567890abcdefgh", "BTC").error !== null, "wrong prefix should fail");
 });
 
 await test("validateCryptoAddress: valid ETH address passes", () => {
   // Standard 40-hex-char Ethereum address (checksummed)
-  assertEqual(validateCryptoAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e", "ETH"), null, "valid ETH address should pass");
+  const result = validateCryptoAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e", "ETH");
+  assertEqual(result.error, null, "valid ETH address should pass");
 });
 
 await test("validateCryptoAddress: ETH address wrong length is rejected", () => {
-  assert(validateCryptoAddress("0xde0B295669a9FD93d5F28D9", "ETH") !== null, "short ETH address should fail");
+  assert(validateCryptoAddress("0xde0B295669a9FD93d5F28D9", "ETH").error !== null, "short ETH address should fail");
 });
 
 await test("validateCryptoAddress: valid XRP address passes", () => {
-  assertEqual(validateCryptoAddress("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "XRP"), null, "valid XRP address should pass");
+  const result = validateCryptoAddress("rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "XRP");
+  assertEqual(result.error, null, "valid XRP address should pass");
 });
 
 await test("validateCryptoAddress: XRP address with wrong prefix is rejected", () => {
-  assert(validateCryptoAddress("xHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "XRP") !== null, "XRP with 'x' prefix should fail");
+  assert(validateCryptoAddress("xHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "XRP").error !== null, "XRP with 'x' prefix should fail");
 });
 
-await test("validateCryptoAddress: unknown currency returns null (pass-through)", () => {
-  // ALGO not in ADDRESS_RULES — should pass through to let exchange validate
-  assertEqual(validateCryptoAddress("SOMEADDRESS123", "ALGO"), null, "unknown currency should pass through");
+await test("validateCryptoAddress: unknown currency returns no error but surfaces a warning", () => {
+  // ALGO not in ADDRESS_RULES — no error, but warning is returned for operator awareness
+  const result = validateCryptoAddress("SOMEADDRESS123", "ALGO");
+  assertEqual(result.error, null, "unknown currency should not error");
+  assert(result.warning !== null, "unknown currency should return a warning to surface to the user");
+  assert(result.warning!.includes("ALGO"), "warning should mention the currency");
 });
 
 await test("validateCryptoAddress: USDC treated as EVM address", () => {
-  assertEqual(validateCryptoAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e", "USDC"), null, "valid EVM address for USDC should pass");
-  assert(validateCryptoAddress("not-an-address", "USDC") !== null, "invalid EVM address for USDC should fail");
+  const validResult = validateCryptoAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e", "USDC");
+  assertEqual(validResult.error, null, "valid EVM address for USDC should pass");
+  assert(validateCryptoAddress("not-an-address", "USDC").error !== null, "invalid EVM address for USDC should fail");
 });
 
 // ----------------------------------------------------------------
@@ -4324,33 +4333,43 @@ await test("isTokenEntropyOk: rejects token with only 1 distinct character (all 
   assert(!isTokenEntropyOk("a".repeat(64)), "all-same-char token should fail entropy check");
 });
 
-await test("isTokenEntropyOk: rejects token with 7 distinct characters", () => {
-  // "abcdefg" repeated — only 7 unique chars
+await test("isTokenEntropyOk: rejects token with 7 uniform distinct characters (H≈2.8 bits/char)", () => {
+  // "abcdefg" repeated — 7 unique chars, H = log2(7) ≈ 2.81 bits/char < 3.5 threshold
   assert(!isTokenEntropyOk("abcdefgabcdefgabcdefgabcdefgabcdefg"), "7-unique-char token should fail");
 });
 
-await test("isTokenEntropyOk: accepts token with exactly 8 distinct characters", () => {
-  // "abcdefgh" repeated to meet length
-  assert(isTokenEntropyOk("abcdefghabcdefghabcdefghabcdefghabcdefgh"), "8-unique-char token should pass");
+await test("isTokenEntropyOk: rejects token with 8 uniform distinct characters (H=3.0 bits/char)", () => {
+  // "abcdefgh" repeated — 8 unique chars, H = log2(8) = 3.0 bits/char < 3.5 threshold
+  // The old check (distinct chars ≥ 8) would accept this; Shannon entropy correctly rejects it.
+  assert(!isTokenEntropyOk("abcdefghabcdefghabcdefghabcdefghabcdefgh"), "8-unique-char repeating pattern should fail Shannon entropy check");
 });
 
-await test("isTokenEntropyOk: accepts a hex token from openssl rand -hex 32", () => {
+await test("isTokenEntropyOk: accepts a hex token from openssl rand -hex 32 (~4 bits/char)", () => {
+  // 16 distinct chars, approximately uniform → H ≈ 4.0 bits/char
   const token = "a3f8c2d1e9b7046510dce4281f73a0659b48c2fd71e0345a8c6d29b17f4e05c3";
   assert(isTokenEntropyOk(token), "realistic hex token should pass entropy check");
 });
 
-await test("isTokenEntropyOk: rejects keyboard run with fewer than 8 unique chars", () => {
-  // "aaaaabbb" pattern — only 2 unique chars
+await test("isTokenEntropyOk: rejects keyboard run with only 2 unique chars (H=1 bit/char)", () => {
+  // "aaaaabbb" pattern — only 2 unique chars → H = 1 bit/char
   assert(!isTokenEntropyOk("a".repeat(30) + "b".repeat(30)), "2-unique-char token should fail");
 });
 
-await test("isTokenEntropyOk: rejects short low-entropy token", () => {
+await test("isTokenEntropyOk: rejects low-entropy token regardless of length", () => {
   assert(!isTokenEntropyOk("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), "all-a token should fail regardless of length");
 });
 
-await test("isTokenEntropyOk: accepts typical UUID-style token", () => {
+await test("isTokenEntropyOk: rejects UUID-style token (H≈3.4 bits/char, insufficient for bearer secret)", () => {
+  // UUID v4 has a specific structure with heavy repetition of hex digits and hyphens,
+  // yielding ~3.4 bits/char — below the 3.5 threshold. Use openssl rand -hex 32 instead.
   const token = "550e8400-e29b-41d4-a716-446655440000";
-  assert(isTokenEntropyOk(token), "UUID-style token with many unique chars should pass");
+  assert(!isTokenEntropyOk(token), "UUID-style token with low Shannon entropy should be rejected as a bearer secret");
+});
+
+await test("isTokenEntropyOk: accepts a high-entropy alphanumeric token", () => {
+  // 62-char alphabet, roughly uniform → H close to log2(62) ≈ 5.95 bits/char
+  const token = "Xk9mP2rTvL4nQ7sW1eY3uA6cB8fD0gH5iJ";
+  assert(isTokenEntropyOk(token), "high-entropy mixed-case alphanumeric token should pass");
 });
 
 // ----------------------------------------------------------------

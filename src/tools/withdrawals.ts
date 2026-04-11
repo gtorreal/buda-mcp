@@ -213,14 +213,16 @@ export async function handleCreateWithdrawal(
     };
   }
 
+  let addrWarning: string | null = null;
   if (hasAddress) {
-    const addrError = validateCryptoAddress(address!, currency);
+    const { error: addrError, warning } = validateCryptoAddress(address!, currency);
     if (addrError) {
       return {
         content: [{ type: "text", text: JSON.stringify({ error: addrError, code: "INVALID_ADDRESS" }) }],
         isError: true,
       };
     }
+    addrWarning = warning;
   }
 
   try {
@@ -237,7 +239,9 @@ export async function handleCreateWithdrawal(
       payload,
     );
 
-    const result = { content: [{ type: "text" as const, text: JSON.stringify(normalizeWithdrawal(data.withdrawal), null, 2) }] };
+    const normalized = normalizeWithdrawal(data.withdrawal);
+    const responsePayload = addrWarning ? { ...normalized, warning: addrWarning } : normalized;
+    const result = { content: [{ type: "text" as const, text: JSON.stringify(responsePayload, null, 2) }] };
     logAudit({ ts: new Date().toISOString(), tool: "create_withdrawal", transport, args_summary: { currency, amount, type: hasAddress ? "crypto" : "fiat" }, success: true });
     return result;
   } catch (err) {
