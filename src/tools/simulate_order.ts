@@ -8,6 +8,7 @@ import type { TickerResponse, MarketResponse } from "../types.js";
 export const toolSchema = {
   name: "simulate_order",
   description:
+    "[DEPRECATED: prefer get_real_quotation for server-side accurate quotes] " +
     "Simulates a buy or sell order on Buda.com using live ticker data — no order is placed. " +
     "Returns estimated fill price, fee, total cost, and slippage vs mid-price. " +
     "Omit 'price' for a market order simulation; supply 'price' for a limit order simulation. " +

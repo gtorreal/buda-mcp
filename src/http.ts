@@ -34,6 +34,7 @@ import * as withdrawals from "./tools/withdrawals.js";
 import * as receiveAddresses from "./tools/receive_addresses.js";
 import * as remittances from "./tools/remittances.js";
 import * as remittanceRecipients from "./tools/remittance_recipients.js";
+import * as quotation from "./tools/quotation.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
@@ -60,6 +61,7 @@ const PUBLIC_TOOL_SCHEMAS = [
   arbitrage.toolSchema,
   marketSummary.toolSchema,
   simulateOrder.toolSchema,
+  quotation.toolSchema,
   positionSize.toolSchema,
   marketSentiment.toolSchema,
   technicalIndicators.toolSchema,
@@ -85,8 +87,11 @@ const AUTH_TOOL_SCHEMAS = [
   receiveAddresses.getReceiveAddressToolSchema,
   remittances.listRemittancesToolSchema,
   remittances.getRemittanceToolSchema,
+  remittances.quoteRemittanceToolSchema,
+  remittances.acceptRemittanceQuoteToolSchema,
   remittanceRecipients.listToolSchema,
   remittanceRecipients.getToolSchema,
+  receiveAddresses.createReceiveAddressToolSchema,
 ];
 
 function createServer(): McpServer {
@@ -106,6 +111,7 @@ function createServer(): McpServer {
   arbitrage.register(server, client, reqCache);
   marketSummary.register(server, client, reqCache);
   simulateOrder.register(server, client, reqCache);
+  quotation.register(server, client);
   positionSize.register(server);
   marketSentiment.register(server, client, reqCache);
   technicalIndicators.register(server, client);

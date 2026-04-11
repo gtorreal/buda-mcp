@@ -291,6 +291,24 @@ export interface SingleRemittanceRecipientResponse {
   remittance_recipient: RemittanceRecipient;
 }
 
+// ----- Quotations (public) -----
+
+export interface Quotation {
+  id: number | null;
+  type: string;
+  market_id: string;
+  amount: Amount;
+  limit: Amount | null;
+  base_balance_change: Amount;
+  quote_balance_change: Amount;
+  fee_amount: Amount;
+  order_amount: Amount;
+}
+
+export interface QuotationResponse {
+  quotation: Quotation;
+}
+
 // ----- Banks (public) -----
 
 export interface Bank {

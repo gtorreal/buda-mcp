@@ -24,8 +24,9 @@ import { handleGetOrder, handleGetOrderByClientId } from "../src/tools/order_loo
 import { handleGetNetworkFees } from "../src/tools/fees.js";
 import { handleGetDepositHistory } from "../src/tools/deposits.js";
 import { handleGetWithdrawalHistory } from "../src/tools/withdrawals.js";
-import { handleListReceiveAddresses, handleGetReceiveAddress } from "../src/tools/receive_addresses.js";
-import { handleListRemittances, handleGetRemittance } from "../src/tools/remittances.js";
+import { handleListReceiveAddresses, handleGetReceiveAddress, handleCreateReceiveAddress } from "../src/tools/receive_addresses.js";
+import { handleListRemittances, handleGetRemittance, handleQuoteRemittance, handleAcceptRemittanceQuote } from "../src/tools/remittances.js";
+import { handleGetRealQuotation } from "../src/tools/quotation.js";
 import { handleListRemittanceRecipients, handleGetRemittanceRecipient } from "../src/tools/remittance_recipients.js";
 import { handleGetAvailableBanks } from "../src/tools/banks.js";
 
@@ -1757,6 +1758,370 @@ await test("handleGetAvailableBanks: 500 returns isError", async () => {
     assert(result.isError === true, "500 should be isError");
     const parsed = JSON.parse(result.content[0].text) as { code: number };
     assertEqual(parsed.code, 500, "code should be 500");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 2 — get_real_quotation
+// ----------------------------------------------------------------
+
+section("get_real_quotation");
+
+await test("handleGetRealQuotation: INVALID_MARKET_ID without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetRealQuotation({ market_id: "INVALID", type: "Bid", amount: 1 }, client);
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "INVALID_MARKET_ID", "code should be INVALID_MARKET_ID");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetRealQuotation: happy path Bid", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        quotation: {
+          id: 42,
+          type: "Bid",
+          market_id: "BTC-CLP",
+          amount: ["0.05", "BTC"],
+          limit: null,
+          base_balance_change: ["-0.05", "BTC"],
+          quote_balance_change: ["4500000", "CLP"],
+          fee_amount: ["22500", "CLP"],
+          order_amount: ["0.05", "BTC"],
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetRealQuotation({ market_id: "BTC-CLP", type: "Bid", amount: 0.05 }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: number;
+      type: string;
+      market_id: string;
+      amount: number;
+      amount_currency: string;
+      limit: null;
+      limit_currency: null;
+      fee_amount: number;
+      fee_currency: string;
+    };
+    assertEqual(parsed.id, 42, "id should be 42");
+    assertEqual(parsed.type, "Bid", "type should be Bid");
+    assertEqual(parsed.market_id, "BTC-CLP", "market_id should match");
+    assertEqual(parsed.amount, 0.05, "amount should be 0.05");
+    assertEqual(parsed.amount_currency, "BTC", "amount_currency should be BTC");
+    assertEqual(parsed.limit, null, "limit should be null");
+    assertEqual(parsed.limit_currency, null, "limit_currency should be null");
+    assertEqual(parsed.fee_amount, 22500, "fee_amount should be 22500");
+    assertEqual(parsed.fee_currency, "CLP", "fee_currency should be CLP");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetRealQuotation: happy path Ask with limit", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        quotation: {
+          id: null,
+          type: "Ask",
+          market_id: "ETH-CLP",
+          amount: ["1", "ETH"],
+          limit: ["3000000", "CLP"],
+          base_balance_change: ["1", "ETH"],
+          quote_balance_change: ["-3000000", "CLP"],
+          fee_amount: ["15000", "CLP"],
+          order_amount: ["1", "ETH"],
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetRealQuotation(
+      { market_id: "ETH-CLP", type: "Ask", amount: 1, limit: 3000000 },
+      client,
+    );
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: null;
+      limit: number;
+      limit_currency: string;
+    };
+    assertEqual(parsed.id, null, "id should be null");
+    assertEqual(parsed.limit, 3000000, "limit should be 3000000");
+    assertEqual(parsed.limit_currency, "CLP", "limit_currency should be CLP");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetRealQuotation: API 422 passthrough", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Unprocessable Entity" }), { status: 422 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetRealQuotation({ market_id: "BTC-CLP", type: "Bid", amount: 0.000001 }, client);
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 422, "code should be 422");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 2 — create_receive_address
+// ----------------------------------------------------------------
+
+section("create_receive_address");
+
+await test("handleCreateReceiveAddress: INVALID_CURRENCY without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleCreateReceiveAddress({ currency: "!!!!" }, client);
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "INVALID_CURRENCY", "code should be INVALID_CURRENCY");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateReceiveAddress: happy path", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        receive_address: {
+          id: 99,
+          address: "bc1qnewaddress123",
+          currency: "BTC",
+          created_at: "2024-04-01T00:00:00Z",
+          label: null,
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCreateReceiveAddress({ currency: "BTC" }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: number;
+      address: string;
+      currency: string;
+      label: null;
+    };
+    assertEqual(parsed.id, 99, "id should be 99");
+    assertEqual(parsed.address, "bc1qnewaddress123", "address should match");
+    assertEqual(parsed.currency, "BTC", "currency should be BTC");
+    assertEqual(parsed.label, null, "label should be null");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleCreateReceiveAddress: fiat currency API error passthrough", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Not found" }), { status: 404 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleCreateReceiveAddress({ currency: "CLP" }, client);
+    assert(result.isError === true, "should be error for fiat");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 404, "code should be 404");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 2 — quote_remittance
+// ----------------------------------------------------------------
+
+section("quote_remittance");
+
+await test("handleQuoteRemittance: INVALID_CURRENCY without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleQuoteRemittance({ currency: "!!!", amount: 100, recipient_id: 1 }, client);
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "INVALID_CURRENCY", "code should be INVALID_CURRENCY");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleQuoteRemittance: happy path", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        remittance: {
+          id: 55,
+          state: "quoted",
+          currency: "CLP",
+          amount: ["100000", "CLP"],
+          recipient_id: 5,
+          created_at: "2024-04-01T00:00:00Z",
+          expires_at: "2024-04-01T00:30:00Z",
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleQuoteRemittance({ currency: "CLP", amount: 100000, recipient_id: 5 }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: number;
+      state: string;
+      expires_at: string;
+    };
+    assertEqual(parsed.id, 55, "id should be 55");
+    assertEqual(parsed.state, "quoted", "state should be quoted");
+    assert(parsed.expires_at !== null, "expires_at should not be null");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleQuoteRemittance: 404 unknown recipient passthrough", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Not found" }), { status: 404 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleQuoteRemittance({ currency: "CLP", amount: 100000, recipient_id: 9999 }, client);
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 404, "code should be 404");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+// ----------------------------------------------------------------
+// Priority 2 — accept_remittance_quote
+// ----------------------------------------------------------------
+
+section("accept_remittance_quote");
+
+await test("handleAcceptRemittanceQuote: missing/wrong token returns CONFIRMATION_REQUIRED without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleAcceptRemittanceQuote({ id: 77, confirmation_token: "yes" }, client);
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string; remittance_id: number };
+    assertEqual(parsed.code, "CONFIRMATION_REQUIRED", "code should be CONFIRMATION_REQUIRED");
+    assertEqual(parsed.remittance_id, 77, "remittance_id should be 77");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleAcceptRemittanceQuote: empty string token returns CONFIRMATION_REQUIRED without fetch", async () => {
+  const fetchCalled = { value: false };
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> => {
+    fetchCalled.value = true;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const client = {} as BudaClient;
+    const result = await handleAcceptRemittanceQuote({ id: 10, confirmation_token: "" }, client);
+    assert(result.isError === true, "should be error");
+    assert(!fetchCalled.value, "fetch should not have been called");
+    const parsed = JSON.parse(result.content[0].text) as { code: string };
+    assertEqual(parsed.code, "CONFIRMATION_REQUIRED", "code should be CONFIRMATION_REQUIRED");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleAcceptRemittanceQuote: happy path with CONFIRM token", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        remittance: {
+          id: 77,
+          state: "accepted",
+          currency: "CLP",
+          amount: ["100000", "CLP"],
+          recipient_id: 5,
+          created_at: "2024-04-01T00:00:00Z",
+          expires_at: null,
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleAcceptRemittanceQuote({ id: 77, confirmation_token: "CONFIRM" }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { id: number; state: string };
+    assertEqual(parsed.id, 77, "id should be 77");
+    assertEqual(parsed.state, "accepted", "state should be accepted");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleAcceptRemittanceQuote: 422 expired quote passthrough", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Unprocessable Entity" }), { status: 422 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleAcceptRemittanceQuote({ id: 77, confirmation_token: "CONFIRM" }, client);
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 422, "code should be 422");
   } finally {
     globalThis.fetch = savedFetch;
   }

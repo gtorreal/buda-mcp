@@ -4,6 +4,27 @@ import { BudaClient, BudaApiError } from "../client.js";
 import { validateCurrency } from "../validation.js";
 import type { ReceiveAddressesResponse, SingleReceiveAddressResponse, ReceiveAddress } from "../types.js";
 
+export const createReceiveAddressToolSchema = {
+  name: "create_receive_address",
+  description:
+    "Generates a new receive address for a crypto currency. " +
+    "Creates a new blockchain deposit address for the given currency. " +
+    "Each call generates a distinct address. Not idempotent. " +
+    "Only applicable to crypto currencies (BTC, ETH, etc.). " +
+    "Requires BUDA_API_KEY and BUDA_API_SECRET. " +
+    "Example: 'Give me a fresh Bitcoin deposit address.'",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      currency: {
+        type: "string",
+        description: "Currency code (e.g. 'BTC', 'ETH').",
+      },
+    },
+    required: ["currency"],
+  },
+};
+
 export const listReceiveAddressesToolSchema = {
   name: "list_receive_addresses",
   description:
@@ -130,6 +151,40 @@ export async function handleGetReceiveAddress(
   }
 }
 
+export async function handleCreateReceiveAddress(
+  args: { currency: string },
+  client: BudaClient,
+): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
+  const { currency } = args;
+
+  const validationError = validateCurrency(currency);
+  if (validationError) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({ error: validationError, code: "INVALID_CURRENCY" }) }],
+      isError: true,
+    };
+  }
+
+  try {
+    const data = await client.post<SingleReceiveAddressResponse>(
+      `/currencies/${currency.toUpperCase()}/receive_addresses`,
+      {},
+    );
+    return {
+      content: [{ type: "text", text: JSON.stringify(normalizeAddress(data.receive_address), null, 2) }],
+    };
+  } catch (err) {
+    const msg =
+      err instanceof BudaApiError
+        ? { error: err.message, code: err.status, path: err.path }
+        : { error: String(err), code: "UNKNOWN" };
+    return {
+      content: [{ type: "text", text: JSON.stringify(msg) }],
+      isError: true,
+    };
+  }
+}
+
 export function register(server: McpServer, client: BudaClient): void {
   server.tool(
     listReceiveAddressesToolSchema.name,
@@ -148,5 +203,14 @@ export function register(server: McpServer, client: BudaClient): void {
       id: z.number().int().positive().describe("The numeric ID of the receive address."),
     },
     (args) => handleGetReceiveAddress(args, client),
+  );
+
+  server.tool(
+    createReceiveAddressToolSchema.name,
+    createReceiveAddressToolSchema.description,
+    {
+      currency: z.string().min(2).max(10).describe("Currency code (e.g. 'BTC', 'ETH')."),
+    },
+    (args) => handleCreateReceiveAddress(args, client),
   );
 }

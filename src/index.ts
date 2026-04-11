@@ -35,6 +35,7 @@ import * as withdrawals from "./tools/withdrawals.js";
 import * as receiveAddresses from "./tools/receive_addresses.js";
 import * as remittances from "./tools/remittances.js";
 import * as remittanceRecipients from "./tools/remittance_recipients.js";
+import * as quotation from "./tools/quotation.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
 const client = new BudaClient(
@@ -60,6 +61,7 @@ priceHistory.register(server, client, cache);
 arbitrage.register(server, client, cache);
 marketSummary.register(server, client, cache);
 simulateOrder.register(server, client, cache);
+quotation.register(server, client);
 positionSize.register(server);
 marketSentiment.register(server, client, cache);
 technicalIndicators.register(server, client);
