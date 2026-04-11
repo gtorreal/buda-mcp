@@ -145,3 +145,160 @@ export interface OhlcvCandle {
   volume: number;
   trade_count: number;
 }
+
+// ----- Pagination -----
+
+export interface PaginationMeta {
+  current_page: number;
+  total_count: number;
+  total_pages: number;
+}
+
+// ----- Account (private) -----
+
+export interface MeResponse {
+  me: {
+    id: number;
+    email: string;
+    name: string | null;
+    monthly_transacted: Amount;
+    pubsub_key: string | null;
+  };
+}
+
+// ----- Single Balance (private) -----
+
+export interface SingleBalanceResponse {
+  balance: Balance;
+}
+
+// ----- Network Fees (private) -----
+
+export interface Fee {
+  name: string;
+  fee_type: string;
+  base_fee: Amount;
+  percent: string | null;
+}
+
+export interface FeesResponse {
+  fees: Fee[];
+}
+
+// ----- Deposits (private) -----
+
+export interface Deposit {
+  id: number;
+  state: string;
+  currency: string;
+  amount: Amount;
+  fee: Amount;
+  created_at: string;
+  updated_at: string;
+  transfer_account_id: number | null;
+  transaction_hash: string | null;
+}
+
+export interface DepositsResponse {
+  deposits: Deposit[];
+  meta: PaginationMeta;
+}
+
+export interface SingleDepositResponse {
+  deposit: Deposit;
+}
+
+// ----- Withdrawals (private) -----
+
+export interface Withdrawal {
+  id: number;
+  state: string;
+  currency: string;
+  amount: Amount;
+  fee: Amount;
+  address: string | null;
+  tx_hash: string | null;
+  bank_account_id: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WithdrawalsResponse {
+  withdrawals: Withdrawal[];
+  meta: PaginationMeta;
+}
+
+export interface SingleWithdrawalResponse {
+  withdrawal: Withdrawal;
+}
+
+// ----- Receive Addresses (private) -----
+
+export interface ReceiveAddress {
+  id: number;
+  address: string;
+  currency: string;
+  created_at: string;
+  label: string | null;
+}
+
+export interface ReceiveAddressesResponse {
+  receive_addresses: ReceiveAddress[];
+}
+
+export interface SingleReceiveAddressResponse {
+  receive_address: ReceiveAddress;
+}
+
+// ----- Remittances (private) -----
+
+export interface Remittance {
+  id: number;
+  state: string;
+  currency: string;
+  amount: Amount;
+  recipient_id: number | null;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export interface RemittancesResponse {
+  remittances: Remittance[];
+  meta: PaginationMeta;
+}
+
+export interface SingleRemittanceResponse {
+  remittance: Remittance;
+}
+
+// ----- Remittance Recipients (private) -----
+
+export interface RemittanceRecipient {
+  id: number;
+  name: string;
+  bank: string;
+  account_number: string;
+  currency: string;
+  country: string | null;
+}
+
+export interface RemittanceRecipientsResponse {
+  remittance_recipients: RemittanceRecipient[];
+  meta: PaginationMeta;
+}
+
+export interface SingleRemittanceRecipientResponse {
+  remittance_recipient: RemittanceRecipient;
+}
+
+// ----- Banks (public) -----
+
+export interface Bank {
+  id: string;
+  name: string;
+  country: string | null;
+}
+
+export interface BanksResponse {
+  banks: Bank[];
+}

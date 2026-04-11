@@ -25,6 +25,16 @@ import * as positionSize from "./tools/calculate_position_size.js";
 import * as marketSentiment from "./tools/market_sentiment.js";
 import * as technicalIndicators from "./tools/technical_indicators.js";
 import * as deadMansSwitch from "./tools/dead_mans_switch.js";
+import * as banks from "./tools/banks.js";
+import * as account from "./tools/account.js";
+import * as balance from "./tools/balance.js";
+import * as orderLookup from "./tools/order_lookup.js";
+import * as networkFees from "./tools/fees.js";
+import * as deposits from "./tools/deposits.js";
+import * as withdrawals from "./tools/withdrawals.js";
+import * as receiveAddresses from "./tools/receive_addresses.js";
+import * as remittances from "./tools/remittances.js";
+import * as remittanceRecipients from "./tools/remittance_recipients.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
 const client = new BudaClient(
@@ -53,6 +63,7 @@ simulateOrder.register(server, client, cache);
 positionSize.register(server);
 marketSentiment.register(server, client, cache);
 technicalIndicators.register(server, client);
+banks.register(server, client, cache);
 
 // Auth-gated tools — only registered when API credentials are present
 if (client.hasAuth()) {
@@ -61,6 +72,15 @@ if (client.hasAuth()) {
   placeOrder.register(server, client);
   cancelOrder.register(server, client);
   deadMansSwitch.register(server, client);
+  account.register(server, client);
+  balance.register(server, client);
+  orderLookup.register(server, client);
+  networkFees.register(server, client);
+  deposits.register(server, client);
+  withdrawals.register(server, client);
+  receiveAddresses.register(server, client);
+  remittances.register(server, client);
+  remittanceRecipients.register(server, client);
 }
 
 // MCP Resources

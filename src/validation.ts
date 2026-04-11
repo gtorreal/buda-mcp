@@ -14,3 +14,19 @@ export function validateMarketId(id: string): string | null {
   }
   return null;
 }
+
+const CURRENCY_RE = /^[A-Z0-9]{2,10}$/i;
+
+/**
+ * Validates a currency code (e.g. "BTC", "CLP", "USDC").
+ * Returns an error message string if invalid, or null if valid.
+ */
+export function validateCurrency(id: string): string | null {
+  if (!CURRENCY_RE.test(id)) {
+    return (
+      `Invalid currency "${id}". ` +
+      `Expected 2–10 alphanumeric characters (e.g. "BTC", "CLP", "USDC").`
+    );
+  }
+  return null;
+}

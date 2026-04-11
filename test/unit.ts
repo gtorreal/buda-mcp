@@ -17,6 +17,17 @@ import { handleCalculatePositionSize } from "../src/tools/calculate_position_siz
 import { handleMarketSentiment } from "../src/tools/market_sentiment.js";
 import { handleTechnicalIndicators } from "../src/tools/technical_indicators.js";
 import { handleScheduleCancelAll, handleRenewCancelTimer, handleDisarmCancelTimer } from "../src/tools/dead_mans_switch.js";
+import { validateCurrency } from "../src/validation.js";
+import { handleGetAccountInfo } from "../src/tools/account.js";
+import { handleGetBalance } from "../src/tools/balance.js";
+import { handleGetOrder, handleGetOrderByClientId } from "../src/tools/order_lookup.js";
+import { handleGetNetworkFees } from "../src/tools/fees.js";
+import { handleGetDepositHistory } from "../src/tools/deposits.js";
+import { handleGetWithdrawalHistory } from "../src/tools/withdrawals.js";
+import { handleListReceiveAddresses, handleGetReceiveAddress } from "../src/tools/receive_addresses.js";
+import { handleListRemittances, handleGetRemittance } from "../src/tools/remittances.js";
+import { handleListRemittanceRecipients, handleGetRemittanceRecipient } from "../src/tools/remittance_recipients.js";
+import { handleGetAvailableBanks } from "../src/tools/banks.js";
 
 // ----------------------------------------------------------------
 // Minimal test harness
@@ -1157,6 +1168,598 @@ await test("disarm after arm: timer is cleared", async () => {
   // Confirm no timer remains
   const renewResult = handleRenewCancelTimer({ market_id: "BCH-CLP" }, fakeClient);
   assert(renewResult.isError === true, "should have no timer left after disarm");
+});
+
+// ----------------------------------------------------------------
+// n. validateCurrency
+// ----------------------------------------------------------------
+
+section("n. validateCurrency");
+
+await test("validateCurrency: accepts BTC", () => {
+  assertEqual(validateCurrency("BTC"), null, "BTC should be valid");
+});
+
+await test("validateCurrency: accepts CLP (fiat)", () => {
+  assertEqual(validateCurrency("CLP"), null, "CLP should be valid");
+});
+
+await test("validateCurrency: accepts USDC (multi-char)", () => {
+  assertEqual(validateCurrency("USDC"), null, "USDC should be valid");
+});
+
+await test("validateCurrency: case-insensitive — accepts lowercase btc", () => {
+  assertEqual(validateCurrency("btc"), null, "lowercase btc should be valid");
+});
+
+await test("validateCurrency: rejects empty string", () => {
+  assert(validateCurrency("") !== null, "should reject empty string");
+});
+
+await test("validateCurrency: rejects special characters", () => {
+  assert(validateCurrency("BT$") !== null, "should reject $");
+  assert(validateCurrency("BTC!") !== null, "should reject !");
+});
+
+await test("validateCurrency: rejects string longer than 10 chars", () => {
+  assert(validateCurrency("ABCDEFGHIJK") !== null, "should reject 11-char string");
+});
+
+await test("validateCurrency: rejects single character", () => {
+  assert(validateCurrency("B") !== null, "should reject 1-char string");
+});
+
+// ----------------------------------------------------------------
+// o. P1 auth tools — INVALID_CURRENCY guard
+// ----------------------------------------------------------------
+
+section("o. P1 auth tools — INVALID_CURRENCY guard");
+
+await test("handleGetBalance: invalid currency '!!' returns INVALID_CURRENCY", async () => {
+  const fakeClient = {} as BudaClient;
+  const result = await handleGetBalance({ currency: "!!" }, fakeClient);
+  assert(result.isError === true, "should be error");
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_CURRENCY", "code should be INVALID_CURRENCY");
+});
+
+await test("handleGetBalance: invalid currency empty string returns INVALID_CURRENCY", async () => {
+  const fakeClient = {} as BudaClient;
+  const result = await handleGetBalance({ currency: "" }, fakeClient);
+  assert(result.isError === true, "should be error");
+});
+
+await test("handleGetNetworkFees: invalid currency returns INVALID_CURRENCY", async () => {
+  const fakeClient = {} as BudaClient;
+  const result = await handleGetNetworkFees({ currency: "$$", type: "withdrawal" }, fakeClient);
+  assert(result.isError === true, "should be error");
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_CURRENCY", "code should be INVALID_CURRENCY");
+});
+
+await test("handleGetDepositHistory: invalid currency returns INVALID_CURRENCY", async () => {
+  const fakeClient = {} as BudaClient;
+  const result = await handleGetDepositHistory({ currency: "BAD!!" }, fakeClient);
+  assert(result.isError === true, "should be error");
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_CURRENCY", "code should be INVALID_CURRENCY");
+});
+
+await test("handleGetWithdrawalHistory: invalid currency returns INVALID_CURRENCY", async () => {
+  const fakeClient = {} as BudaClient;
+  const result = await handleGetWithdrawalHistory({ currency: "B" }, fakeClient);
+  assert(result.isError === true, "should be error");
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_CURRENCY", "code should be INVALID_CURRENCY");
+});
+
+await test("handleListReceiveAddresses: invalid currency returns INVALID_CURRENCY", async () => {
+  const fakeClient = {} as BudaClient;
+  const result = await handleListReceiveAddresses({ currency: "!!" }, fakeClient);
+  assert(result.isError === true, "should be error");
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_CURRENCY", "code should be INVALID_CURRENCY");
+});
+
+await test("handleGetReceiveAddress: invalid currency returns INVALID_CURRENCY", async () => {
+  const fakeClient = {} as BudaClient;
+  const result = await handleGetReceiveAddress({ currency: "!!", id: 1 }, fakeClient);
+  assert(result.isError === true, "should be error");
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_CURRENCY", "code should be INVALID_CURRENCY");
+});
+
+await test("handleGetAvailableBanks: invalid currency returns INVALID_CURRENCY", async () => {
+  const fakeClient = {} as BudaClient;
+  const fakeCache = new MemoryCache();
+  const result = await handleGetAvailableBanks({ currency: "!!" }, fakeClient, fakeCache);
+  assert(result.isError === true, "should be error");
+  const parsed = JSON.parse(result.content[0].text) as { code: string };
+  assertEqual(parsed.code, "INVALID_CURRENCY", "code should be INVALID_CURRENCY");
+});
+
+// ----------------------------------------------------------------
+// p. P1 tools — happy path (mocked API)
+// ----------------------------------------------------------------
+
+section("p. P1 tools — happy path (mocked API)");
+
+await test("handleGetAccountInfo: returns flattened profile", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        me: {
+          id: 42,
+          email: "user@example.com",
+          name: "Test User",
+          monthly_transacted: ["5000000", "CLP"],
+          pubsub_key: "pk_test",
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetAccountInfo(client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: number;
+      email: string;
+      monthly_transacted: number;
+      monthly_transacted_currency: string;
+    };
+    assertEqual(parsed.id, 42, "id should be 42");
+    assertEqual(parsed.email, "user@example.com", "email should match");
+    assertEqual(parsed.monthly_transacted, 5000000, "monthly_transacted should be a float");
+    assertEqual(parsed.monthly_transacted_currency, "CLP", "currency should be CLP");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetBalance: returns flattened balance", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        balance: {
+          id: "BTC",
+          amount: ["0.5", "BTC"],
+          available_amount: ["0.4", "BTC"],
+          frozen_amount: ["0.1", "BTC"],
+          pending_withdraw_amount: ["0.0", "BTC"],
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetBalance({ currency: "BTC" }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: string;
+      amount: number;
+      available_amount: number;
+      frozen_amount: number;
+    };
+    assertEqual(parsed.id, "BTC", "id should be BTC");
+    assertEqual(parsed.amount, 0.5, "amount should be 0.5");
+    assertEqual(parsed.available_amount, 0.4, "available_amount should be 0.4");
+    assertEqual(parsed.frozen_amount, 0.1, "frozen_amount should be 0.1");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetOrder: returns normalized order", async () => {
+  const savedFetch = globalThis.fetch;
+  const mockOrder = {
+    order: {
+      id: 123456,
+      type: "Bid",
+      state: "active",
+      created_at: "2024-01-01T00:00:00Z",
+      market_id: "BTC-CLP",
+      fee_currency: "CLP",
+      price_type: "limit",
+      order_type: "limit_order",
+      client_id: null,
+      limit: ["65000000", "CLP"],
+      amount: ["0.001", "BTC"],
+      original_amount: ["0.001", "BTC"],
+      traded_amount: ["0", "BTC"],
+      total_exchanged: ["0", "CLP"],
+      paid_fee: ["0", "CLP"],
+    },
+  };
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify(mockOrder), { status: 200, headers: { "Content-Type": "application/json" } });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetOrder({ order_id: 123456 }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      id: number;
+      type: string;
+      state: string;
+      limit_price: number;
+      amount: number;
+    };
+    assertEqual(parsed.id, 123456, "id should match");
+    assertEqual(parsed.type, "Bid", "type should be Bid");
+    assertEqual(parsed.state, "active", "state should be active");
+    assertEqual(parsed.limit_price, 65000000, "limit_price should be a float");
+    assertEqual(parsed.amount, 0.001, "amount should be 0.001");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetOrder: 404 returns isError with code 404", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Not found" }), { status: 404 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetOrder({ order_id: 999999 }, client);
+    assert(result.isError === true, "should be error");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 404, "code should be 404");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetOrderByClientId: returns normalized order", async () => {
+  const savedFetch = globalThis.fetch;
+  const mockOrder = {
+    order: {
+      id: 77777,
+      type: "Ask",
+      state: "traded",
+      created_at: "2024-06-01T00:00:00Z",
+      market_id: "ETH-BTC",
+      fee_currency: "BTC",
+      price_type: "limit",
+      order_type: "limit_order",
+      client_id: "my-bot-42",
+      limit: ["0.05", "BTC"],
+      amount: ["1", "ETH"],
+      original_amount: ["1", "ETH"],
+      traded_amount: ["1", "ETH"],
+      total_exchanged: ["0.05", "BTC"],
+      paid_fee: ["0.0004", "BTC"],
+    },
+  };
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify(mockOrder), { status: 200, headers: { "Content-Type": "application/json" } });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetOrderByClientId({ client_id: "my-bot-42" }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { id: number; client_id: string };
+    assertEqual(parsed.id, 77777, "id should match");
+    assertEqual(parsed.client_id, "my-bot-42", "client_id should match");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetDepositHistory: returns flattened deposits with meta", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        deposits: [
+          {
+            id: 1,
+            state: "confirmed",
+            currency: "BTC",
+            amount: ["0.1", "BTC"],
+            fee: ["0.0001", "BTC"],
+            created_at: "2024-01-01T00:00:00Z",
+            updated_at: "2024-01-01T01:00:00Z",
+            transfer_account_id: null,
+            transaction_hash: "abc123",
+          },
+        ],
+        meta: { current_page: 1, total_count: 1, total_pages: 1 },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetDepositHistory({ currency: "BTC" }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      deposits: Array<{ id: number; amount: number; fee: number; state: string }>;
+      meta: { total_count: number };
+    };
+    assertEqual(parsed.deposits.length, 1, "should have 1 deposit");
+    assertEqual(parsed.deposits[0].id, 1, "id should be 1");
+    assertEqual(parsed.deposits[0].amount, 0.1, "amount should be 0.1");
+    assertEqual(parsed.deposits[0].fee, 0.0001, "fee should be a float");
+    assertEqual(parsed.meta.total_count, 1, "total_count should be 1");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetDepositHistory: empty list is not an error", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({ deposits: [], meta: { current_page: 1, total_count: 0, total_pages: 0 } }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetDepositHistory({ currency: "BTC" }, client);
+    assert(!result.isError, "empty list should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { deposits: unknown[] };
+    assertEqual(parsed.deposits.length, 0, "deposits should be empty array");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetWithdrawalHistory: returns flattened withdrawals", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        withdrawals: [
+          {
+            id: 5,
+            state: "confirmed",
+            currency: "CLP",
+            amount: ["100000", "CLP"],
+            fee: ["500", "CLP"],
+            address: null,
+            tx_hash: null,
+            bank_account_id: 99,
+            created_at: "2024-02-01T00:00:00Z",
+            updated_at: "2024-02-01T01:00:00Z",
+          },
+        ],
+        meta: { current_page: 1, total_count: 1, total_pages: 1 },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetWithdrawalHistory({ currency: "CLP" }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      withdrawals: Array<{ id: number; amount: number; bank_account_id: number }>;
+    };
+    assertEqual(parsed.withdrawals[0].id, 5, "id should be 5");
+    assertEqual(parsed.withdrawals[0].amount, 100000, "amount should be 100000");
+    assertEqual(parsed.withdrawals[0].bank_account_id, 99, "bank_account_id should be 99");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleListReceiveAddresses: returns address list", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        receive_addresses: [
+          { id: 10, address: "bc1qtest", currency: "BTC", created_at: "2024-01-01T00:00:00Z", label: null },
+        ],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleListReceiveAddresses({ currency: "BTC" }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      receive_addresses: Array<{ id: number; address: string }>;
+    };
+    assertEqual(parsed.receive_addresses.length, 1, "should have 1 address");
+    assertEqual(parsed.receive_addresses[0].id, 10, "id should be 10");
+    assertEqual(parsed.receive_addresses[0].address, "bc1qtest", "address should match");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetReceiveAddress: returns single address", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        receive_address: { id: 10, address: "bc1qtest", currency: "BTC", created_at: "2024-01-01T00:00:00Z", label: "cold storage" },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetReceiveAddress({ currency: "BTC", id: 10 }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { id: number; label: string };
+    assertEqual(parsed.id, 10, "id should be 10");
+    assertEqual(parsed.label, "cold storage", "label should match");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleListRemittances: returns remittance list with flattened amounts", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        remittances: [
+          {
+            id: 77,
+            state: "quoted",
+            currency: "CLP",
+            amount: ["100000", "CLP"],
+            recipient_id: 5,
+            created_at: "2024-03-01T00:00:00Z",
+            expires_at: "2024-03-01T01:00:00Z",
+          },
+        ],
+        meta: { current_page: 1, total_count: 1, total_pages: 1 },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleListRemittances({}, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      remittances: Array<{ id: number; amount: number; recipient_id: number }>;
+    };
+    assertEqual(parsed.remittances[0].id, 77, "id should be 77");
+    assertEqual(parsed.remittances[0].amount, 100000, "amount should be a float");
+    assertEqual(parsed.remittances[0].recipient_id, 5, "recipient_id should be 5");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetRemittance: returns single remittance", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        remittance: {
+          id: 88,
+          state: "confirmed",
+          currency: "COP",
+          amount: ["500000", "COP"],
+          recipient_id: 3,
+          created_at: "2024-04-01T00:00:00Z",
+          expires_at: null,
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetRemittance({ id: 88 }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { id: number; state: string; expires_at: null };
+    assertEqual(parsed.id, 88, "id should be 88");
+    assertEqual(parsed.state, "confirmed", "state should be confirmed");
+    assertEqual(parsed.expires_at, null, "expires_at should be null");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleListRemittanceRecipients: returns recipient list", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        remittance_recipients: [
+          { id: 1, name: "Alice", bank: "banco_estado", account_number: "123456", currency: "CLP", country: "CL" },
+        ],
+        meta: { current_page: 1, total_count: 1, total_pages: 1 },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleListRemittanceRecipients({}, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as {
+      remittance_recipients: Array<{ id: number; name: string; bank: string }>;
+    };
+    assertEqual(parsed.remittance_recipients[0].id, 1, "id should be 1");
+    assertEqual(parsed.remittance_recipients[0].name, "Alice", "name should match");
+    assertEqual(parsed.remittance_recipients[0].bank, "banco_estado", "bank should match");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetRemittanceRecipient: returns single recipient", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        remittance_recipient: {
+          id: 7, name: "Bob", bank: "bancolombia", account_number: "987654", currency: "COP", country: null,
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const result = await handleGetRemittanceRecipient({ id: 7 }, client);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { id: number; country: null };
+    assertEqual(parsed.id, 7, "id should be 7");
+    assertEqual(parsed.country, null, "country should be null");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetAvailableBanks: returns bank list for fiat currency", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(
+      JSON.stringify({
+        banks: [
+          { id: "banco_estado", name: "Banco Estado", country: "CL" },
+          { id: "bci", name: "BCI", country: "CL" },
+        ],
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const cache = new MemoryCache();
+    const result = await handleGetAvailableBanks({ currency: "CLP" }, client, cache);
+    assert(!result.isError, "should not be error");
+    const parsed = JSON.parse(result.content[0].text) as { currency: string; banks: Array<{ id: string }> };
+    assertEqual(parsed.currency, "CLP", "currency should be CLP");
+    assertEqual(parsed.banks.length, 2, "should have 2 banks");
+    assertEqual(parsed.banks[0].id, "banco_estado", "first bank id should match");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetAvailableBanks: 404 returns empty list (not an error)", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Not found" }), { status: 404 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const cache = new MemoryCache();
+    const result = await handleGetAvailableBanks({ currency: "USD" }, client, cache);
+    assert(!result.isError, "404 should NOT be an error — empty list");
+    const parsed = JSON.parse(result.content[0].text) as { banks: unknown[] };
+    assertEqual(parsed.banks.length, 0, "banks should be empty array");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
+});
+
+await test("handleGetAvailableBanks: 500 returns isError", async () => {
+  const savedFetch = globalThis.fetch;
+  globalThis.fetch = async (): Promise<Response> =>
+    new Response(JSON.stringify({ message: "Internal server error" }), { status: 500 });
+  try {
+    const client = new BudaClient("https://www.buda.com/api/v2");
+    const cache = new MemoryCache();
+    const result = await handleGetAvailableBanks({ currency: "CLP" }, client, cache);
+    assert(result.isError === true, "500 should be isError");
+    const parsed = JSON.parse(result.content[0].text) as { code: number };
+    assertEqual(parsed.code, 500, "code should be 500");
+  } finally {
+    globalThis.fetch = savedFetch;
+  }
 });
 
 // ----------------------------------------------------------------

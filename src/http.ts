@@ -24,6 +24,16 @@ import * as positionSize from "./tools/calculate_position_size.js";
 import * as marketSentiment from "./tools/market_sentiment.js";
 import * as technicalIndicators from "./tools/technical_indicators.js";
 import * as deadMansSwitch from "./tools/dead_mans_switch.js";
+import * as banks from "./tools/banks.js";
+import * as account from "./tools/account.js";
+import * as balance from "./tools/balance.js";
+import * as orderLookup from "./tools/order_lookup.js";
+import * as networkFees from "./tools/fees.js";
+import * as deposits from "./tools/deposits.js";
+import * as withdrawals from "./tools/withdrawals.js";
+import * as receiveAddresses from "./tools/receive_addresses.js";
+import * as remittances from "./tools/remittances.js";
+import * as remittanceRecipients from "./tools/remittance_recipients.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
@@ -53,6 +63,7 @@ const PUBLIC_TOOL_SCHEMAS = [
   positionSize.toolSchema,
   marketSentiment.toolSchema,
   technicalIndicators.toolSchema,
+  banks.toolSchema,
 ];
 
 const AUTH_TOOL_SCHEMAS = [
@@ -63,6 +74,19 @@ const AUTH_TOOL_SCHEMAS = [
   deadMansSwitch.toolSchema,
   deadMansSwitch.renewToolSchema,
   deadMansSwitch.disarmToolSchema,
+  account.toolSchema,
+  balance.toolSchema,
+  orderLookup.getOrderToolSchema,
+  orderLookup.getOrderByClientIdToolSchema,
+  networkFees.toolSchema,
+  deposits.getDepositHistoryToolSchema,
+  withdrawals.getWithdrawalHistoryToolSchema,
+  receiveAddresses.listReceiveAddressesToolSchema,
+  receiveAddresses.getReceiveAddressToolSchema,
+  remittances.listRemittancesToolSchema,
+  remittances.getRemittanceToolSchema,
+  remittanceRecipients.listToolSchema,
+  remittanceRecipients.getToolSchema,
 ];
 
 function createServer(): McpServer {
@@ -85,6 +109,7 @@ function createServer(): McpServer {
   positionSize.register(server);
   marketSentiment.register(server, client, reqCache);
   technicalIndicators.register(server, client);
+  banks.register(server, client, reqCache);
 
   if (authEnabled) {
     balances.register(server, client);
@@ -92,6 +117,15 @@ function createServer(): McpServer {
     placeOrder.register(server, client);
     cancelOrder.register(server, client);
     deadMansSwitch.register(server, client);
+    account.register(server, client);
+    balance.register(server, client);
+    orderLookup.register(server, client);
+    networkFees.register(server, client);
+    deposits.register(server, client);
+    withdrawals.register(server, client);
+    receiveAddresses.register(server, client);
+    remittances.register(server, client);
+    remittanceRecipients.register(server, client);
   }
 
   // MCP Resources

@@ -45,6 +45,7 @@ export const CACHE_TTL = {
   MARKETS: 60_000,
   TICKER: 5_000,
   ORDERBOOK: 3_000,
+  BANKS: 60_000,
 } as const;
 
 export const cache = new MemoryCache();
