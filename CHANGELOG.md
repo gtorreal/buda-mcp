@@ -7,6 +7,17 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **Marketplace documentation gap** — `claude-listing.md`, `gemini-tools.json`, and `openapi.yaml` were missing 18 tools that were already implemented and registered in the server. All three files now reflect the full set of 46 tools:
+  - Public tools added: `get_available_banks`, `get_real_quotation`
+  - Auth tools added: `get_account_info`, `get_balance`, `get_order`, `get_order_by_client_id`, `get_network_fees`, `get_deposit_history`, `get_withdrawal_history`, `create_receive_address`, `list_receive_addresses`, `get_receive_address`, `list_remittance_recipients`, `get_remittance_recipient`, `list_remittances`, `quote_remittance`, `accept_remittance_quote`, `get_remittance`
+  - `openapi.yaml` bumped to version `1.4.0` (was `1.3.0`) and expanded from 14 to 16 paths, adding `get_available_banks` and `get_real_quotation` with full response schemas.
+
+---
+
 ## [1.5.0] – 2026-04-11
 
 ### Added
