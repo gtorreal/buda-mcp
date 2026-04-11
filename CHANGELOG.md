@@ -11,6 +11,24 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.5.5] – 2026-04-11
+
+### Security
+
+- **Fetch timeout added to all Buda API calls** — `BudaClient.fetchWithRetry` now passes `AbortSignal.timeout(15_000)` to every `fetch` call (both the initial request and the 429-retry). Without a timeout, a hung upstream response held an Express worker open indefinitely, enabling a slow-response denial-of-service.
+
+- **`auth_mode` removed from public `/health` response** — the unauthenticated health endpoint no longer reveals whether the server is running with live exchange credentials. Fingerprinting the deployment mode is now blocked for unauthenticated callers.
+
+- **`client_id` length-capped in `cancel_order_by_client_id`** — the Zod schema now enforces `.max(255)` on the `client_id` parameter. Previously an unbounded string would be `encodeURIComponent`-encoded and forwarded directly into the URL path, potentially generating extremely long requests.
+
+- **`client_id` now included in audit log for `cancel_order_by_client_id`** — both the success and error branches of `handleCancelOrderByClientId` previously wrote `args_summary: {}`, making the audit trail useless for this operation. The `client_id` is now recorded.
+
+- **`bank` field length-capped in `create_fiat_deposit`** — the Zod schema now enforces `.max(100)` on the optional `bank` field, preventing an unbounded string from being forwarded to the Buda API.
+
+- **`trust proxy` comment strengthened** — the inline comment now explicitly warns that adding a second proxy layer (e.g. Cloudflare) in front of Railway requires incrementing `trust proxy` to 2; failing to do so allows clients to spoof `X-Forwarded-For` and bypass the IP-based rate limiter.
+
+---
+
 ## [1.5.4] – 2026-04-11
 
 ### Security

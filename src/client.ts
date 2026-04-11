@@ -82,14 +82,20 @@ export class BudaClient {
     options: RequestInit,
     path: string,
   ): Promise<Response> {
-    const response = await fetch(url.toString(), options);
+    const response = await fetch(url.toString(), {
+      ...options,
+      signal: AbortSignal.timeout(15_000),
+    });
 
     if (response.status !== 429) return response;
 
     const retryAfterMs = this.parseRetryAfterMs(response.headers);
     await new Promise((r) => setTimeout(r, retryAfterMs));
 
-    const retry = await fetch(url.toString(), options);
+    const retry = await fetch(url.toString(), {
+      ...options,
+      signal: AbortSignal.timeout(15_000),
+    });
 
     if (retry.status === 429) {
       const retryAgainMs = this.parseRetryAfterMs(retry.headers);

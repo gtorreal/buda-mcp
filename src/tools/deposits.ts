@@ -220,7 +220,7 @@ export function register(server: McpServer, client: BudaClient): void {
     {
       currency: z.string().min(2).max(10).describe("Fiat currency code (e.g. 'CLP', 'COP', 'PEN')."),
       amount: z.number().positive().describe("Deposit amount."),
-      bank: z.string().optional().describe("Bank name or identifier for the deposit source."),
+      bank: z.string().max(100).optional().describe("Bank name or identifier for the deposit source."),
       confirmation_token: z
         .string()
         .describe("Safety confirmation. Must equal exactly 'CONFIRM' (case-sensitive) to execute."),

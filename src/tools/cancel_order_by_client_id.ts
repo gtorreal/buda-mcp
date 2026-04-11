@@ -99,7 +99,7 @@ export async function handleCancelOrderByClientId(
     );
 
     const result = { content: [{ type: "text" as const, text: JSON.stringify(normalizeOrder(data.order), null, 2) }] };
-    logAudit({ ts: new Date().toISOString(), tool: "cancel_order_by_client_id", transport, args_summary: {}, success: true });
+    logAudit({ ts: new Date().toISOString(), tool: "cancel_order_by_client_id", transport, args_summary: { client_id }, success: true });
     return result;
   } catch (err) {
     const msg =
@@ -107,7 +107,7 @@ export async function handleCancelOrderByClientId(
         ? { error: err.message, code: err.status }
         : { error: String(err), code: "UNKNOWN" };
     const result = { content: [{ type: "text" as const, text: JSON.stringify(msg) }], isError: true as const };
-    logAudit({ ts: new Date().toISOString(), tool: "cancel_order_by_client_id", transport, args_summary: {}, success: false, error_code: msg.code });
+    logAudit({ ts: new Date().toISOString(), tool: "cancel_order_by_client_id", transport, args_summary: { client_id }, success: false, error_code: msg.code });
     return result;
   }
 }
@@ -124,6 +124,7 @@ export function register(
       client_id: z
         .string()
         .min(1)
+        .max(255)
         .describe("The client ID string assigned when placing the order."),
       confirmation_token: z
         .string()

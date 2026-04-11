@@ -237,7 +237,8 @@ app.use(helmet());
 // communication only (AI agents, Claude Desktop, etc.) — not for browser clients.
 // Helmet already sets X-Content-Type-Options, X-Frame-Options, and related headers.
 // trust proxy: 1 = trust exactly one hop (Railway's reverse proxy).
-// If Cloudflare or another proxy is added in front, increment this value.
+// IMPORTANT: if a second proxy is added in front (e.g. Cloudflare), increment this value to 2.
+// With an incorrect count, clients can spoof X-Forwarded-For and bypass the IP-based rate limiter.
 // Affects: req.ip and express-rate-limit client IP detection.
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "10kb" }));
@@ -303,11 +304,7 @@ function mcpAuthMiddleware(
 // Health check for Railway / uptime monitors.
 // version is intentionally omitted to avoid fingerprinting by unauthenticated callers.
 app.get("/health", staticRateLimiter, (_req, res) => {
-  res.json({
-    status: "ok",
-    server: "buda-mcp",
-    auth_mode: authEnabled ? "authenticated" : "public",
-  });
+  res.json({ status: "ok", server: "buda-mcp" });
 });
 
 // Smithery static server card — assembled programmatically from tool definitions.
