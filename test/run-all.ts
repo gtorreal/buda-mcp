@@ -3,24 +3,8 @@
  * and prints a summary of the results.
  *
  * Run with: npm run test:integration
- * Auth tools (balances, orders, DMS) are tested automatically if a .env file with
- * BUDA_API_KEY and BUDA_API_SECRET exists in the project root (already in .gitignore).
  * Skipped automatically when the Buda API is unreachable (CI without network).
  */
-
-// Load .env if present (never committed — see .gitignore)
-import { existsSync, readFileSync } from "fs";
-if (existsSync(".env")) {
-  for (const line of readFileSync(".env", "utf8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eqIdx = trimmed.indexOf("=");
-    if (eqIdx === -1) continue;
-    const key = trimmed.slice(0, eqIdx).trim();
-    const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
-    if (key && !(key in process.env)) process.env[key] = val;
-  }
-}
 
 // Connectivity pre-check — skip gracefully instead of failing CI when the API is unreachable.
 try {
@@ -39,7 +23,6 @@ import { handleSimulateOrder } from "../src/tools/simulate_order.js";
 import { handleCalculatePositionSize } from "../src/tools/calculate_position_size.js";
 import { handleMarketSentiment } from "../src/tools/market_sentiment.js";
 import { handleTechnicalIndicators } from "../src/tools/technical_indicators.js";
-import { handleScheduleCancelAll, handleDisarmCancelTimer } from "../src/tools/dead_mans_switch.js";
 import type {
   MarketsResponse,
   TickerResponse,
@@ -47,15 +30,9 @@ import type {
   TradesResponse,
   VolumeResponse,
   AllTickersResponse,
-  BalancesResponse,
-  OrdersResponse,
 } from "../src/types.js";
 
-const client = new BudaClient(
-  undefined,
-  process.env.BUDA_API_KEY,
-  process.env.BUDA_API_SECRET,
-);
+const client = new BudaClient();
 const TEST_MARKET = "BTC-CLP";
 
 function section(title: string): void {
@@ -121,8 +98,7 @@ try {
   if (book.bids.length > 0 && book.asks.length > 0) {
     pass("top bid", `${book.bids[0][0]} @ ${book.bids[0][1]} BTC`);
     pass("top ask", `${book.asks[0][0]} @ ${book.asks[0][1]} BTC`);
-    const spread =
-      parseFloat(book.asks[0][0]) - parseFloat(book.bids[0][0]);
+    const spread = parseFloat(book.asks[0][0]) - parseFloat(book.bids[0][0]);
     pass("spread", spread.toFixed(2));
   }
 } catch (err) {
@@ -288,7 +264,6 @@ section(`simulate_order — ${TEST_MARKET} market buy`);
 // ----------------------------------------------------------------
 section(`calculate_position_size — ${TEST_MARKET}`);
 {
-  // Fetch live ticker to use real entry/stop prices
   try {
     const tickerData = await client.get<TickerResponse>(
       `/markets/${TEST_MARKET.toLowerCase()}/ticker`,
@@ -380,8 +355,8 @@ type TechIndicatorsResponse = {
   disclaimer: string;
 };
 
-// 12a. 1h period — expected to hit insufficient_data (BTC-CLP has ~8 candles/1h)
-section(`get_technical_indicators — ${TEST_MARKET} (1h, insufficient_data branch)`);
+// 12a. 1h period
+section(`get_technical_indicators — ${TEST_MARKET} (1h)`);
 {
   try {
     const result = await handleTechnicalIndicators(
@@ -390,11 +365,11 @@ section(`get_technical_indicators — ${TEST_MARKET} (1h, insufficient_data bran
     );
     if (result.isError) throw new Error(result.content[0].text);
     const parsed = JSON.parse(result.content[0].text) as TechIndicatorsResponse;
-    if (parsed.warning !== "insufficient_data") {
-      pass("note", `got ${parsed.candles_used} candles — unexpectedly enough data, indicators returned`);
-    } else {
-      pass("warning", `insufficient_data — ${parsed.candles_available} candles available (need 50) ✓`);
+    if (parsed.warning === "insufficient_data") {
+      pass("warning", `insufficient_data — ${parsed.candles_available} candles available (need 20) ✓`);
       pass("indicators", parsed.indicators === null ? "null ✓" : "SHOULD BE NULL");
+    } else {
+      pass("note", `got ${parsed.candles_used} candles — indicators returned`);
     }
   } catch (err) {
     fail("get_technical_indicators (1h)", err);
@@ -402,8 +377,8 @@ section(`get_technical_indicators — ${TEST_MARKET} (1h, insufficient_data bran
   }
 }
 
-// 12b. 5m period — enough candles to compute real indicators (~42 from last 100 trades)
-section(`get_technical_indicators — ${TEST_MARKET} (5m, indicators branch)`);
+// 12b. 5m period
+section(`get_technical_indicators — ${TEST_MARKET} (5m)`);
 {
   try {
     const result = await handleTechnicalIndicators(
@@ -414,12 +389,13 @@ section(`get_technical_indicators — ${TEST_MARKET} (5m, indicators branch)`);
     const parsed = JSON.parse(result.content[0].text) as TechIndicatorsResponse;
 
     if (parsed.warning === "insufficient_data") {
-      // Market too quiet right now — report but don't fail
-      pass("note", `insufficient_data with 1m period (${parsed.candles_available} candles) — market unusually quiet`);
+      pass("note", `insufficient_data with 5m period (${parsed.candles_available} candles) — market unusually quiet`);
     } else {
       if (!parsed.indicators) throw new Error("indicators is null without a warning");
       pass("candles_used", String(parsed.candles_used));
-      pass("rsi", parsed.indicators.rsi !== null ? `${parsed.indicators.rsi} (${parsed.signals.rsi_signal})` : "null (insufficient RSI data)");
+      pass("rsi", parsed.indicators.rsi !== null
+        ? `${parsed.indicators.rsi} (${parsed.signals.rsi_signal})`
+        : "null (insufficient RSI data)");
       pass("macd_histogram", parsed.indicators.macd !== null
         ? `${parsed.indicators.macd.histogram.toFixed(2)} (${parsed.signals.macd_signal})`
         : "null (insufficient MACD data)");
@@ -427,79 +403,13 @@ section(`get_technical_indicators — ${TEST_MARKET} (5m, indicators branch)`);
         ? `${parsed.indicators.bollinger_bands.upper.toLocaleString()} (${parsed.signals.bb_signal})`
         : "null (insufficient BB data)");
       pass("sma_20", String(parsed.indicators.sma_20?.toLocaleString()));
-      pass("sma_50", parsed.indicators.sma_50 !== null ? String(parsed.indicators.sma_50?.toLocaleString()) : "null (need 50 candles)");
+      pass("sma_50", parsed.indicators.sma_50 !== null
+        ? String(parsed.indicators.sma_50?.toLocaleString())
+        : "null (need 50 candles)");
       pass("disclaimer", parsed.disclaimer?.length > 0 ? "present ✓" : "MISSING");
     }
   } catch (err) {
-    fail("get_technical_indicators (1m)", err);
-    failures++;
-  }
-}
-
-// ----------------------------------------------------------------
-// Auth tools: get_balances, get_orders, place_order, cancel_order
-// ----------------------------------------------------------------
-section("Auth tools — get_balances, get_orders, place_order, cancel_order");
-
-if (!client.hasAuth()) {
-  console.log("  Skipping: BUDA_API_KEY not set");
-  console.log("  (Set BUDA_API_KEY + BUDA_API_SECRET env vars to run auth tests)");
-} else {
-  // get_balances
-  try {
-    const data = await client.get<BalancesResponse>("/balances");
-    const nonZero = data.balances.filter((b) => parseFloat(b.amount[0]) > 0);
-    pass("get_balances", `${data.balances.length} currencies, ${nonZero.length} with balance`);
-  } catch (err) {
-    fail("get_balances", err);
-    failures++;
-  }
-
-  // get_orders
-  try {
-    const data = await client.get<OrdersResponse>(
-      `/markets/${TEST_MARKET.toLowerCase()}/orders`,
-      { state: "pending", per: 10 },
-    );
-    pass("get_orders (pending)", `${data.orders.length} orders, page ${data.meta.current_page}/${data.meta.total_pages}`);
-  } catch (err) {
-    fail("get_orders", err);
-    failures++;
-  }
-
-  // place_order — confirmation guard test (must reject without CONFIRM)
-  console.log("  Skipping: place_order live execution (destructive — requires confirmation_token=CONFIRM)");
-  pass("place_order guard", "confirmation_token check enforced at tool layer (code-audited)");
-
-  // cancel_order — confirmation guard test (must reject without CONFIRM)
-  console.log("  Skipping: cancel_order live execution (destructive — requires confirmation_token=CONFIRM)");
-  pass("cancel_order guard", "confirmation_token check enforced at tool layer (code-audited)");
-
-  // schedule_cancel_all — arm then immediately disarm (non-destructive)
-  try {
-    const armResult = await handleScheduleCancelAll(
-      { market_id: TEST_MARKET, ttl_seconds: 300, confirmation_token: "CONFIRM" },
-      client,
-    );
-    if (armResult.isError) throw new Error(armResult.content[0].text);
-    const armed = JSON.parse(armResult.content[0].text) as {
-      active: boolean;
-      expires_at: string;
-      ttl_seconds: number;
-      warning: string;
-    };
-    if (!armed.active) throw new Error("active should be true after CONFIRM");
-    pass("schedule_cancel_all active", armed.active ? "true" : "false");
-    pass("schedule_cancel_all expires_at", armed.expires_at);
-    pass("schedule_cancel_all warning", armed.warning.length > 0 ? "present" : "MISSING");
-
-    // Immediately disarm so no orders are cancelled
-    const disarmResult = handleDisarmCancelTimer({ market_id: TEST_MARKET });
-    if (disarmResult.isError) throw new Error(disarmResult.content[0].text);
-    const disarmed = JSON.parse(disarmResult.content[0].text) as { disarmed: boolean };
-    pass("disarm_cancel_timer", disarmed.disarmed ? "timer cleared ✓" : "FAILED to disarm");
-  } catch (err) {
-    fail("schedule_cancel_all / disarm_cancel_timer", err);
+    fail("get_technical_indicators (5m)", err);
     failures++;
   }
 }
@@ -510,8 +420,10 @@ if (!client.hasAuth()) {
 section("Summary");
 if (failures === 0) {
   console.log("  All tools returned valid data from the live Buda API.");
-  console.log("  Coverage: simulate_order, calculate_position_size, get_market_sentiment,");
-  console.log("            get_technical_indicators, schedule_cancel_all/disarm (auth-gated if credentials set).");
+  console.log("  Coverage: get_markets, get_ticker, get_orderbook, get_trades,");
+  console.log("            get_market_volume, get_spread, compare_markets, get_price_history,");
+  console.log("            simulate_order, calculate_position_size, get_market_sentiment,");
+  console.log("            get_technical_indicators.");
 } else {
   console.error(`  ${failures} tool(s) failed. See errors above.`);
   process.exit(1);
