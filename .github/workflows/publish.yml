@@ -4,6 +4,10 @@ on:
   release:
     types: [published]
 
+permissions:
+  id-token: write   # required for github-oidc authentication
+  contents: read
+
 jobs:
   publish:
     name: Publish to MCP Registry
@@ -23,6 +27,4 @@ jobs:
           sudo mv mcp-publisher /usr/local/bin/
 
       - name: Publish to MCP Registry
-        env:
-          MCP_REGISTRY_TOKEN: ${{ secrets.MCP_REGISTRY_TOKEN }}
-        run: mcp-publisher publish server.json
+        run: mcp-publisher login github-oidc && mcp-publisher publish server.json
