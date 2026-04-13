@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BudaClient, formatApiError } from "../client.js";
 import { MemoryCache, CACHE_TTL } from "../cache.js";
+import { liquidityBadge, fmtSlippage, fmtTimestamp } from "../format.js";
 import type { MarketsResponse, TickerResponse, OrderBookResponse } from "../types.js";
 
 export const toolSchema = {
@@ -52,6 +53,54 @@ export function walkOrderbook(
 
   if (remaining > 0) return null;
   return totalQuote / usdAmount;
+}
+
+const SIZE_LABELS: Record<SizeKey, string> = {
+  usd_1k: "$1k",
+  usd_5k: "$5k",
+  usd_10k: "$10k",
+  usd_50k: "$50k",
+  usd_100k: "$100k",
+};
+
+type MarketResult = {
+  market_id: string;
+  quote_currency: string;
+  best_bid: number;
+  best_ask: number;
+  spread_pct: number;
+  slippage: Record<SizeKey, SlippageEntry>;
+  data_timestamp: string;
+};
+
+export function formatStableLiquidity(results: MarketResult[]): string {
+  const timestamp = results[0]?.data_timestamp
+    ? fmtTimestamp(results[0].data_timestamp)
+    : new Date().toUTCString();
+
+  const sections = results.map((r) => {
+    const badge = liquidityBadge(r.spread_pct);
+    const header = `### ${r.market_id} — Spread ${r.spread_pct}% ${badge}`;
+    const prices = `Bid: ${r.best_bid.toLocaleString("en-US")} | Ask: ${r.best_ask.toLocaleString("en-US")} ${r.quote_currency}`;
+
+    const tableHeader = "| Size   | Buy slippage | Sell slippage |";
+    const tableSep =   "|--------|-------------|---------------|";
+    const rows = SIZE_KEYS.map((key) => {
+      const s = r.slippage[key];
+      const buy = s.insufficient_liquidity ? "—" : fmtSlippage(s.buy_pct);
+      const sell = s.insufficient_liquidity ? "—" : fmtSlippage(s.sell_pct);
+      return `| ${SIZE_LABELS[key].padEnd(6)} | ${buy.padEnd(11)} | ${sell.padEnd(13)} |`;
+    });
+
+    return [header, prices, "", tableHeader, tableSep, ...rows].join("\n");
+  });
+
+  return [
+    "## Stablecoin Liquidity — Buda.com",
+    `_Updated: ${timestamp}_`,
+    "",
+    sections.join("\n\n---\n"),
+  ].join("\n");
 }
 
 export async function handleStableLiquidity(
@@ -141,7 +190,7 @@ export async function handleStableLiquidity(
     );
 
     return {
-      content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+      content: [{ type: "text", text: formatStableLiquidity(results) }],
     };
   } catch (err) {
     const msg = formatApiError(err);

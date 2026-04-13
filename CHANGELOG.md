@@ -13,6 +13,9 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 - **`get_stable_liquidity`** — new tool that reports spread and orderbook-depth slippage for all stablecoin markets on Buda.com (USDT-CLP, USDC-CLP, USDT-PEN, USDC-PEN, USDT-COP, USDC-COP, USDT-USDC, and any future stablecoin markets). Markets are discovered dynamically. Slippage is computed by walking the live order book for five fixed USD notional sizes: 1k, 5k, 10k, 50k, and 100k. Returns `spread_pct`, `best_bid`, `best_ask`, and per-size `buy_pct`/`sell_pct`; `null` + `insufficient_liquidity: true` when order book depth is too thin for that size.
 - 6 new unit tests for the `walkOrderbook` helper function (covers exact fill, multi-level walk, partial fill, thin book, empty book edge cases).
+- **`src/format.ts`** — new shared formatting utility module. Provides `liquidityBadge(spreadPct)`, `fmtSlippage(pct)`, and `fmtTimestamp(iso)` helpers used by tool formatters.
+- **Markdown output for `get_stable_liquidity`** — tool now returns pre-formatted markdown instead of raw JSON, including liquidity badges (✅/🟡/🔴), bid/ask prices, and a slippage table by order size. Output is consistent across all MCP clients (Claude Desktop, Cursor, Cline, etc.) without requiring any AI-side formatting.
+- **`.cursor/rules/tool-output-format.mdc`** — Cursor rule documenting the output formatting pattern for all tools: mandate, shared helpers, step-by-step pattern, and a minimal before/after example.
 
 ---
 

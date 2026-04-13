@@ -1,0 +1,92 @@
+---
+description: Output formatting pattern for buda-mcp tools
+globs: src/tools/**/*.ts
+alwaysApply: false
+---
+
+# Tool Output Format
+
+## Mandate
+
+Every tool must return **pre-formatted markdown**, never raw JSON. This ensures any MCP client (Claude Desktop, Cursor, Cline, Zed, etc.) renders the same structured output regardless of AI-side configuration.
+
+```typescript
+// NEVER do this
+return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+
+// ALWAYS do this
+return { content: [{ type: "text", text: formatMyTool(result) }] };
+```
+
+## Shared helpers — `src/format.ts`
+
+Import from `../format.js` (compiled path). Available helpers:
+
+| Helper | Purpose |
+|--------|---------|
+| `liquidityBadge(spreadPct)` | Returns ✅ / 🟡 / 🔴 (thresholds: <0.5%, <2%, ≥2%) |
+| `fmtSlippage(pct \| null)` | `+0.052%` / `-0.008%` / `—` for null |
+| `fmtTimestamp(iso)` | `"2026-04-13 15:10:33 UTC"` from ISO string |
+
+Add new helpers to `src/format.ts` when an existing one doesn't cover the use case. Keep helpers generic and reusable — not tied to a specific tool.
+
+## Pattern for every tool file
+
+### 1. Import helpers
+
+```typescript
+import { liquidityBadge, fmtSlippage, fmtTimestamp } from "../format.js";
+```
+
+### 2. Define a `formatX()` function in the tool file
+
+The function takes the typed result object and returns a markdown string. Place it between the type definitions and `handleX()`.
+
+```typescript
+export function formatMyTool(result: MyToolResult): string {
+  return [
+    `## My Tool — ${result.market_id}`,
+    `_Updated: ${fmtTimestamp(result.timestamp)}_`,
+    "",
+    `Bid: ${result.bid} | Ask: ${result.ask}`,
+  ].join("\n");
+}
+```
+
+### 3. Use it in the handler return
+
+```typescript
+return {
+  content: [{ type: "text", text: formatMyTool(result) }],
+};
+```
+
+### 4. Export it for unit testing (optional but recommended)
+
+Exporting `formatX` lets `test/unit.ts` assert on the rendered output without network calls.
+
+## Real example — `src/tools/stable_liquidity.ts`
+
+`formatStableLiquidity(results)` produces:
+
+```
+## Stablecoin Liquidity — Buda.com
+_Updated: 2026-04-13 15:10:33 UTC_
+
+### USDC-CLP — Spread 0.19% ✅
+Bid: 899.37 | Ask: 901.12 CLP
+
+| Size   | Buy slippage | Sell slippage |
+|--------|-------------|---------------|
+| $1k    | +0.002%     | -0.008%       |
+| $100k  | +0.002%     | -0.008%       |
+
+---
+### USDT-COP — Spread 2.61% 🔴
+...
+```
+
+## When to add a helper to `src/format.ts` vs keeping it in the tool file
+
+- **Add to `src/format.ts`** if the helper is likely to be reused by 2+ tools (e.g. badge, slippage cell, timestamp).
+- **Keep in the tool file** if the formatting logic is specific to that tool's data shape.
