@@ -20,6 +20,7 @@ This project uses [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - **`get_stable_liquidity` output format** — enriched the markdown response with Spanish labels (`Actualizado:`, column header `Tamaño`) and a per-market insight line (italic, auto-generated from live data). The insight describes liquidity rank, buy-side depth, and sell-side behaviour at large sizes (e.g. *"El más líquido del exchange. Spread mínimo, sin impacto de precio al comprar hasta $100k."*, *"Buena liquidez hasta $50k. A $100k el sell slippage se dispara…"*). Logic uses "effective" market ranking (markets that can fill at least $50k) so thin-book markets with a narrow spread are not misleadingly ranked first.
+- **`.cursor/rules/mcp-output-passthrough.mdc`** — new always-applied Cursor rule instructing the agent to relay buda-mcp tool responses verbatim. Since every tool in the server returns pre-formatted markdown by contract, the agent must not re-summarize, reformat, or paraphrase the output; commentary is only added when the user explicitly requests it.
 
 ---
 
