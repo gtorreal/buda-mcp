@@ -17,6 +17,10 @@ This project uses [Semantic Versioning](https://semver.org/).
 - **Markdown output for `get_stable_liquidity`** — tool now returns pre-formatted markdown instead of raw JSON, including liquidity badges (✅/🟡/🔴), bid/ask prices, and a slippage table by order size. Output is consistent across all MCP clients (Claude Desktop, Cursor, Cline, etc.) without requiring any AI-side formatting.
 - **`.cursor/rules/tool-output-format.mdc`** — Cursor rule documenting the output formatting pattern for all tools: mandate, shared helpers, step-by-step pattern, and a minimal before/after example.
 
+### Changed
+
+- **`get_stable_liquidity` output format** — enriched the markdown response with Spanish labels (`Actualizado:`, column header `Tamaño`) and a per-market insight line (italic, auto-generated from live data). The insight describes liquidity rank, buy-side depth, and sell-side behaviour at large sizes (e.g. *"El más líquido del exchange. Spread mínimo, sin impacto de precio al comprar hasta $100k."*, *"Buena liquidez hasta $50k. A $100k el sell slippage se dispara…"*). Logic uses "effective" market ranking (markets that can fill at least $50k) so thin-book markets with a narrow spread are not misleadingly ranked first.
+
 ---
 
 ## [2.0.0] — 2026-04-11
