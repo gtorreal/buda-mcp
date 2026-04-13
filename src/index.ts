@@ -23,6 +23,7 @@ import * as marketSentiment from "./tools/market_sentiment.js";
 import * as technicalIndicators from "./tools/technical_indicators.js";
 import * as banks from "./tools/banks.js";
 import * as quotation from "./tools/quotation.js";
+import * as stableLiquidity from "./tools/stable_liquidity.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
 const client = new BudaClient();
@@ -48,6 +49,7 @@ positionSize.register(server);
 marketSentiment.register(server, client, cache);
 technicalIndicators.register(server, client);
 banks.register(server, client, cache);
+stableLiquidity.register(server, client, cache);
 
 // MCP Resources
 server.resource(

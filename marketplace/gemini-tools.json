@@ -334,6 +334,14 @@
           "amount"
         ]
       }
+    },
+    {
+      "name": "get_stable_liquidity",
+      "description": "Returns spread and orderbook-depth slippage for all stablecoin markets on Buda.com (USDT-CLP, USDC-CLP, USDT-PEN, USDC-PEN, USDT-COP, USDC-COP, USDT-USDC, etc.). Reports spread_pct, best_bid, best_ask, and buy/sell slippage percentages at five notional USD sizes: 1k, 5k, 10k, 50k, 100k. null values indicate insufficient order book depth. Example: 'How liquid are the stablecoin markets on Buda right now?'",
+      "parameters": {
+        "type": "OBJECT",
+        "properties": {}
+      }
     }
   ]
 }

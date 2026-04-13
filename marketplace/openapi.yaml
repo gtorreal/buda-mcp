@@ -604,6 +604,59 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /get_stable_liquidity:
+    get:
+      operationId: getStableLiquidity
+      summary: Spread and slippage for all stablecoin markets
+      description: |
+        Returns spread and orderbook-depth slippage for all stablecoin markets on Buda.com
+        (USDT-CLP, USDC-CLP, USDT-PEN, USDC-PEN, USDT-COP, USDC-COP, USDT-USDC, etc.).
+        Slippage is computed by walking the live order book for five fixed USD notional sizes:
+        1k, 5k, 10k, 50k, and 100k. Positive buy_pct means you pay more than the best ask;
+        negative sell_pct means you receive less than the best bid.
+        null values indicate insufficient order book depth for that size.
+        Markets are discovered dynamically — new stablecoin markets appear automatically.
+        Example: 'How liquid are the stablecoin markets on Buda right now?'
+      responses:
+        "200":
+          description: Stable liquidity snapshot for all stablecoin markets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    market_id:
+                      type: string
+                      example: USDT-CLP
+                    quote_currency:
+                      type: string
+                      example: CLP
+                    best_bid:
+                      type: number
+                    best_ask:
+                      type: number
+                    spread_pct:
+                      type: number
+                      description: Bid/ask spread as a percentage of best ask.
+                    slippage:
+                      type: object
+                      properties:
+                        usd_1k:
+                          $ref: "#/components/schemas/SlippageEntry"
+                        usd_5k:
+                          $ref: "#/components/schemas/SlippageEntry"
+                        usd_10k:
+                          $ref: "#/components/schemas/SlippageEntry"
+                        usd_50k:
+                          $ref: "#/components/schemas/SlippageEntry"
+                        usd_100k:
+                          $ref: "#/components/schemas/SlippageEntry"
+                    data_timestamp:
+                      type: string
+                      format: date-time
+
 components:
   schemas:
     Market:
@@ -1279,6 +1332,25 @@ components:
           description: Present only when warning is set. Always 50.
         disclaimer:
           type: string
+
+    SlippageEntry:
+      type: object
+      properties:
+        buy_pct:
+          type: number
+          nullable: true
+          description: >
+            Buy slippage vs best ask as a percentage. Positive = you pay more than best ask.
+            null when order book depth is insufficient for this size.
+        sell_pct:
+          type: number
+          nullable: true
+          description: >
+            Sell slippage vs best bid as a percentage. Negative = you receive less than best bid.
+            null when order book depth is insufficient for this size.
+        insufficient_liquidity:
+          type: boolean
+          description: Present and true only when buy_pct and sell_pct are null.
 
     Error:
       type: object

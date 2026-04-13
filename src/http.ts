@@ -26,6 +26,7 @@ import * as marketSentiment from "./tools/market_sentiment.js";
 import * as technicalIndicators from "./tools/technical_indicators.js";
 import * as banks from "./tools/banks.js";
 import * as quotation from "./tools/quotation.js";
+import * as stableLiquidity from "./tools/stable_liquidity.js";
 import { handleMarketSummary } from "./tools/market_summary.js";
 
 let PORT: number;
@@ -68,6 +69,7 @@ const TOOL_SCHEMAS = [
   marketSentiment.toolSchema,
   technicalIndicators.toolSchema,
   banks.toolSchema,
+  stableLiquidity.toolSchema,
 ];
 
 function createServer(): McpServer {
@@ -92,6 +94,7 @@ function createServer(): McpServer {
   marketSentiment.register(server, client, reqCache);
   technicalIndicators.register(server, client);
   banks.register(server, client, reqCache);
+  stableLiquidity.register(server, client, reqCache);
 
   // MCP Resources
   server.resource(

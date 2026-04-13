@@ -7,6 +7,15 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`get_stable_liquidity`** — new tool that reports spread and orderbook-depth slippage for all stablecoin markets on Buda.com (USDT-CLP, USDC-CLP, USDT-PEN, USDC-PEN, USDT-COP, USDC-COP, USDT-USDC, and any future stablecoin markets). Markets are discovered dynamically. Slippage is computed by walking the live order book for five fixed USD notional sizes: 1k, 5k, 10k, 50k, and 100k. Returns `spread_pct`, `best_bid`, `best_ask`, and per-size `buy_pct`/`sell_pct`; `null` + `insufficient_liquidity: true` when order book depth is too thin for that size.
+- 6 new unit tests for the `walkOrderbook` helper function (covers exact fill, multi-level walk, partial fill, thin book, empty book edge cases).
+
+---
+
 ## [2.0.0] — 2026-04-11
 
 ### Breaking Changes

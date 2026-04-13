@@ -82,6 +82,10 @@ Server-side buy or sell quotation from Buda using the live order book. Returns t
 Banks available for fiat deposits and withdrawals for a given currency. Returns an array of `{ id, name, country }` objects. Cached 60 s.  
 **Parameters:** `currency` *(required)* — e.g. `CLP`, `COP`, `PEN`.
 
+### `get_stable_liquidity`
+Spread and orderbook-depth slippage for all stablecoin markets on Buda (USDT-CLP, USDC-CLP, USDT-PEN, USDC-PEN, USDT-COP, USDC-COP, USDT-USDC, etc.). Reports `spread_pct`, `best_bid`, `best_ask`, and buy/sell slippage percentages at five notional sizes: USD 1k, 5k, 10k, 50k, 100k. `null` values indicate insufficient order book depth.  
+**Parameters:** *(none required)*.
+
 ---
 
 ## MCP Resources
