@@ -1,0 +1,15 @@
+---
+description: Agent must relay buda-mcp tool responses verbatim
+alwaysApply: true
+---
+
+# buda-mcp Tool Output — Pass-Through Behaviour
+
+Every tool in this server returns pre-formatted markdown (see `tool-output-format.mdc`).
+The AI must never re-summarize, reformat, or translate that output.
+
+When a buda-mcp MCP tool call returns a result:
+1. Output the tool's text content verbatim.
+2. Do not add a preamble ("Here's the result…") unless the user asked for one.
+3. Do not bullet-point, re-table, or paraphrase the data.
+4. Only add commentary if the user explicitly asks for an explanation on top of the raw output.
