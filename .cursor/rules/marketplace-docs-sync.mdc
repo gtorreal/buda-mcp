@@ -12,7 +12,7 @@ Any change to `src/tools/` that adds, removes, or modifies a tool **must** be ac
 
 | File | What to update |
 |------|----------------|
-| `marketplace/claude-listing.md` | Add/remove/update `### \`tool_name\`` section in the correct group (Public or Authenticated) |
+| `marketplace/claude-listing.md` | Add/remove/update `### \`tool_name\`` section |
 | `marketplace/gemini-tools.json` | Add/remove/update entry in `functionDeclarations[]` with Gemini types (`STRING`, `INTEGER`, `NUMBER`, `OBJECT`) |
 | `marketplace/openapi.yaml` | Add/remove/update path + response schema — **public tools only** (auth tools are excluded intentionally) |
 
@@ -22,11 +22,9 @@ Any change to `src/tools/` that adds, removes, or modifies a tool **must** be ac
 - **Tool removed** → remove from all files
 - **Parameter added/changed/removed** → update description and `required` array in all files
 - **Tool description changed** → update all files
-- **Auth status changed** (public ↔ auth) → move between sections in `claude-listing.md`, update `gemini-tools.json`, add/remove from `openapi.yaml`
-
 ## Quick checklist before committing
 
-- [ ] `claude-listing.md` reflects all 46+ tools (run `grep "^### \`" marketplace/claude-listing.md | wc -l` to count)
+- [ ] `claude-listing.md` reflects all public tools (run `grep "^### \`" marketplace/claude-listing.md | wc -l` to count)
 - [ ] `gemini-tools.json` `functionDeclarations` count matches
 - [ ] `openapi.yaml` paths count matches public tool count
 - [ ] `CHANGELOG.md` has an entry describing the change

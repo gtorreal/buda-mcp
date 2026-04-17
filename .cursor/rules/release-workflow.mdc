@@ -48,7 +48,6 @@ npm publish --access public --provenance   # → npmjs.com
 
 - `src/validation.ts` — `validateMarketId(id)` returns error string or null; apply before `.toLowerCase()` and URL use
 - `src/cache.ts` — `MemoryCache` with in-flight deduplication; TTLs: markets 60s, tickers 5s, orderbooks 3s
-- `BudaApiError` has `retryAfterMs` for 429 responses; client retries once honoring `Retry-After` header (seconds, RFC 7231, default 1s)
-- Auth tools only registered when `BUDA_API_KEY` + `BUDA_API_SECRET` env vars are present
+- `BudaApiError` has `retryAfterMs` for 429 responses; client retries once honoring `Retry-After` header (seconds, RFC 7231, default 1s, capped at 30s)
 - `scripts/sync-version.mjs` — run via `npm run sync-version`
 - Unit tests: `npm run test:unit` (no network); Integration: `npm run test:integration` (skips if API unreachable)

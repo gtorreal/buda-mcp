@@ -336,6 +336,12 @@ marketplace/
 
 ---
 
+## Documentation
+
+Agent context: [AGENTS.md](AGENTS.md) | Operational notes: [docs/PROJECT_MEMORY.md](docs/PROJECT_MEMORY.md) | Changelog: [CHANGELOG.md](CHANGELOG.md) | Security: [SECURITY.md](SECURITY.md)
+
+---
+
 ## License
 
 MIT — [Buda.com API docs](https://api.buda.com/en/)
