@@ -21,6 +21,13 @@ export const toolSchema = {
 };
 
 const STABLECOIN_BASE_CURRENCIES = new Set(["USDT", "USDC", "DAI", "TUSD"]);
+
+const STABLE_MARKET_ORDER = [
+  "USDT-CLP", "USDC-CLP",
+  "USDT-PEN", "USDC-PEN",
+  "USDT-COP", "USDC-COP",
+  "USDT-USDC",
+];
 const USD_SIZES = [1_000, 5_000, 10_000, 50_000, 100_000] as const;
 const SIZE_KEYS = ["usd_1k", "usd_5k", "usd_10k", "usd_50k", "usd_100k"] as const;
 
@@ -263,6 +270,14 @@ export async function handleStableLiquidity(
         };
       }),
     );
+
+    results.sort((a, b) => {
+      const ai = STABLE_MARKET_ORDER.indexOf(a.market_id);
+      const bi = STABLE_MARKET_ORDER.indexOf(b.market_id);
+      const aIdx = ai === -1 ? 999 : ai;
+      const bIdx = bi === -1 ? 999 : bi;
+      return aIdx - bIdx;
+    });
 
     return {
       content: [{ type: "text", text: formatStableLiquidity(results) }],
